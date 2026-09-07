@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Modal, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 
@@ -17,6 +17,7 @@ export default function App() {
 
   const [history, setHistory] = useState([]);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const [selectedMonthOffset, setSelectedMonthOffset] = useState(0);
 
   // Rastreamento GPS Nativo
   useEffect(() => {
@@ -131,6 +132,7 @@ export default function App() {
     const newWorkoutItem = {
       id: Date.now().toString(),
       monthYear: monthName,
+      timestamp: now.getTime(),
       date: now.toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
@@ -161,16 +163,22 @@ export default function App() {
     setStatusMsg('PRONTO');
   };
 
-  const groupHistoryByMonth = (items) => {
-    return items.reduce((acc, item) => {
-      const monthKey = item.monthYear || 'OUTROS';
-      if (!acc[monthKey]) acc[monthKey] = [];
-      acc[monthKey].push(item);
-      return acc;
-    }, {});
+  const deleteWorkout = (id) => {
+    setHistory((prev) => prev.filter((item) => item.id !== id));
+    setSelectedWorkout(null);
   };
 
-  // HTML com OpenStreetMap (Leaflet) sem chave de API
+  const getSelectedMonthName = () => {
+    const date = new Date();
+    date.setMonth(date.getMonth() + selectedMonthOffset);
+    return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  };
+
+  const getFilteredHistory = () => {
+    const currentMonthLabel = getSelectedMonthName();
+    return history.filter((item) => item.monthYear === currentMonthLabel);
+  };
+
   const getMapHtml = (coords) => {
     const defaultLat = coords && coords.length > 0 ? coords[0].latitude : (location ? location.latitude : -29.6872);
     const defaultLng = coords && coords.length > 0 ? coords[0].longitude : (location ? location.longitude : -51.1306);
@@ -216,6 +224,9 @@ export default function App() {
     `;
   };
 
+  const filteredWorkouts = getFilteredHistory();
+  const totalMonthKm = filteredWorkouts.reduce((sum, item) => sum + parseFloat(item.distance), 0).toFixed(2);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
@@ -242,53 +253,56 @@ export default function App() {
 
       {currentTab === 'history' ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {history.length === 0 ? (
+          <View style={styles.monthHeader}>
+            <TouchableOpacity onPress={() => setSelectedMonthOffset((prev) => prev - 1)}>
+              <Text style={styles.monthNavArrow}>◀</Text>
+            </TouchableOpacity>
+            <Text style={styles.monthTitle}>📅 {getSelectedMonthName()}</Text>
+            <TouchableOpacity onPress={() => setSelectedMonthOffset((prev) => prev + 1)}>
+              <Text style={styles.monthNavArrow}>▶</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.monthTotalBadge}>
+            <Text style={styles.monthTotalKmText}>TOTAL DO MÊS: {totalMonthKm} KM</Text>
+          </View>
+
+          {filteredWorkouts.length === 0 ? (
             <View style={styles.emptyHistory}>
-              <Text style={styles.emptyText}>Nenhum treino registrado ainda.</Text>
+              <Text style={styles.emptyText}>Nenhum treino neste mês.</Text>
             </View>
           ) : (
-            Object.entries(groupHistoryByMonth(history)).map(([monthGroup, workouts]) => {
-              const totalMonthKm = workouts.reduce((sum, item) => sum + parseFloat(item.distance), 0).toFixed(2);
-              return (
-                <View key={monthGroup} style={styles.monthSection}>
-                  <View style={styles.monthHeader}>
-                    <Text style={styles.monthTitle}>📅 {monthGroup}</Text>
-                    <Text style={styles.monthTotalKm}>{totalMonthKm} KM</Text>
-                  </View>
-                  {workouts.map((item) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.historyCard}
-                      onPress={() => setSelectedWorkout(item)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.historyHeader}>
-                        <Text style={styles.historyDate}>🗓️ {item.date}</Text>
-                        <Text style={styles.historyDistance}>{item.distance} KM ➔</Text>
-                      </View>
-                      <View style={styles.historyStatsRow}>
-                        <View style={styles.historyStatItem}>
-                          <Text style={styles.historyStatValue}>{item.duration}</Text>
-                          <Text style={styles.historyStatLabel}>TEMPO</Text>
-                        </View>
-                        <View style={styles.historyStatItem}>
-                          <Text style={styles.historyStatValue}>{item.pace}</Text>
-                          <Text style={styles.historyStatLabel}>PACE</Text>
-                        </View>
-                        <View style={styles.historyStatItem}>
-                          <Text style={styles.historyStatValue}>{item.elevation} m</Text>
-                          <Text style={styles.historyStatLabel}>ELEVAÇÃO</Text>
-                        </View>
-                        <View style={styles.historyStatItem}>
-                          <Text style={styles.historyStatValue}>{item.calories} kcal</Text>
-                          <Text style={styles.historyStatLabel}>CALORIAS</Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+            filteredWorkouts.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.historyCard}
+                onPress={() => setSelectedWorkout(item)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.historyHeader}>
+                  <Text style={styles.historyDate}>🗓️ {item.date}</Text>
+                  <Text style={styles.historyDistance}>{item.distance} KM ➔</Text>
                 </View>
-              );
-            })
+                <View style={styles.historyStatsRow}>
+                  <View style={styles.historyStatItem}>
+                    <Text style={styles.historyStatValue}>{item.duration}</Text>
+                    <Text style={styles.historyStatLabel}>TEMPO</Text>
+                  </View>
+                  <View style={styles.historyStatItem}>
+                    <Text style={styles.historyStatValue}>{item.pace}</Text>
+                    <Text style={styles.historyStatLabel}>PACE</Text>
+                  </View>
+                  <View style={styles.historyStatItem}>
+                    <Text style={styles.historyStatValue}>{item.elevation} m</Text>
+                    <Text style={styles.historyStatLabel}>ELEVAÇÃO</Text>
+                  </View>
+                  <View style={styles.historyStatItem}>
+                    <Text style={styles.historyStatValue}>{item.calories} kcal</Text>
+                    <Text style={styles.historyStatLabel}>CALORIAS</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
           )}
         </ScrollView>
       ) : (
@@ -392,7 +406,7 @@ export default function App() {
         </ScrollView>
       )}
 
-      {/* Modal de Detalhes do Treino do Histórico */}
+      {/* Modal de Detalhes com Botão Excluir */}
       <Modal
         visible={selectedWorkout !== null}
         animationType="slide"
@@ -434,16 +448,22 @@ export default function App() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedWorkout(null)}>
-              <Text style={styles.closeButtonText}>FECHAR</Text>
-            </TouchableOpacity>
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => deleteWorkout(selectedWorkout?.id)}
+              >
+                <Text style={styles.deleteButtonText}>EXCLUIR TREINO</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedWorkout(null)}>
+                <Text style={styles.closeButtonText}>FECHAR</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
     </SafeAreaView>
-  );
-                             }
-    const styles = StyleSheet.create({
+  );const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
   headerContainer: {
@@ -539,23 +559,27 @@ export default function App() {
   saveButton: { backgroundColor: '#007AFF', paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
 
-  monthSection: { marginBottom: 20 },
   monthHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#13151C',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#1E222D',
   },
-  monthTitle: { color: '#00D26A', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  monthTotalKm: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  monthTitle: { color: '#00D26A', fontSize: 13, fontWeight: '900', letterSpacing: 1 },
+  monthNavArrow: { color: '#00D26A', fontSize: 16, fontWeight: '900', paddingHorizontal: 10 },
+  monthTotalBadge: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  monthTotalKmText: { color: '#6C727F', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   emptyHistory: { alignItems: 'center', marginTop: 40, padding: 20 },
-  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  emptyText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   historyCard: {
     backgroundColor: '#13151C',
     borderRadius: 16,
@@ -579,7 +603,6 @@ export default function App() {
   historyStatValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   historyStatLabel: { color: '#6C727F', fontSize: 8, marginTop: 2 },
 
-  // Estilos do Modal de Detalhes
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -605,13 +628,28 @@ export default function App() {
     marginBottom: 10,
     backgroundColor: '#090A0F',
   },
-  closeButton: {
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  deleteButton: {
+    flex: 1,
     backgroundColor: '#FF3B30',
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
-    marginTop: 10,
   },
-  closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14 },
+  deleteButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
+  closeButton: {
+    flex: 1,
+    backgroundColor: '#1E222D',
+    paddingVertical: 14,
+    borderRadius: 30,
+    alignItems: 'center',
+  },
+  closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
+               
+    }
     
