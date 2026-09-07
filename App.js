@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
@@ -11,13 +11,17 @@ export default function App() {
   const [duration, setDuration] = useState(0);
   const [distance, setDistance] = useState(0);
   const [elevationGain, setElevationGain] = useState(0);
-  const [lastAltitude, setLastAltitude] = useState(null);
   const [workoutFinished, setWorkoutFinished] = useState(false);
   const [statusMsg, setStatusMsg] = useState('PRONTO');
 
   const [history, setHistory] = useState([]);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [selectedMonthOffset, setSelectedMonthOffset] = useState(0);
+
+  // Referências para o tempo e elevação imunes a travamentos
+  const startTimeRef = useRef(null);
+  const accumulatedTimeRef = useRef(0);
+  const lastAltitudeRef = useRef(null);
 
   // Rastreamento GPS Nativo
   useEffect(() => {
@@ -40,16 +44,17 @@ export default function App() {
         },
         (newLocation) => {
           const { latitude, longitude, altitude } = newLocation.coords;
-          const newCoords = { latitude, longitude };
+          const currentAlt = altitude !== null && altitude !== undefined ? Math.round(altitude) : 0;
+          const newCoords = { latitude, longitude, altitude: currentAlt };
 
           if (altitude !== null && altitude !== undefined) {
-            if (lastAltitude !== null && altitude > lastAltitude) {
-              const altDiff = altitude - lastAltitude;
+            if (lastAltitudeRef.current !== null && altitude > lastAltitudeRef.current) {
+              const altDiff = altitude - lastAltitudeRef.current;
               if (altDiff > 0.5) {
-                setElevationGain((prev) => prev + altDiff);
+                setElevationGain((e) => e + altDiff);
               }
             }
-            setLastAltitude(altitude);
+            lastAltitudeRef.current = altitude;
           }
 
           setLocation(newCoords);
@@ -72,9 +77,16 @@ export default function App() {
     };
 
     if (!isPaused && !workoutFinished) {
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now();
+      }
       startLocationUpdates();
     } else if (isPaused && !workoutFinished && duration > 0) {
       setStatusMsg('PAUSADO');
+      if (startTimeRef.current) {
+        accumulatedTimeRef.current += Math.floor((Date.now() - startTimeRef.current) / 1000);
+        startTimeRef.current = null;
+      }
     }
 
     return () => {
@@ -84,11 +96,16 @@ export default function App() {
     };
   }, [isPaused, workoutFinished]);
 
-  // Cronômetro
+  // Cronômetro baseado em Timestamp Real (Imune a Tela Desligada)
   useEffect(() => {
     let timer;
     if (!isPaused && !workoutFinished) {
-      timer = setInterval(() => setDuration((prev) => prev + 1), 1000);
+      timer = setInterval(() => {
+        if (startTimeRef.current) {
+          const currentElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          setDuration(accumulatedTimeRef.current + currentElapsed);
+        }
+      }, 1000);
     }
     return () => clearInterval(timer);
   }, [isPaused, workoutFinished]);
@@ -122,9 +139,31 @@ export default function App() {
     return `${hrs > 0 ? `${hrs}:` : ''}${mins < 10 ? '0' : ''}${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
   };
 
-  const finishWorkout = () => {
+  // Buscar temperatura real local via Open-Meteo
+  const fetchTemperature = async (lat, lng) => {
+    try {
+      if (!lat || !lng) return '--°C';
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`
+      );
+      const data = await response.json();
+      if (data && data.current_weather) {
+        return `${Math.round(data.current_weather.temperature)}°C`;
+      }
+      return '--°C';
+    } catch (e) {
+      return '--°C';
+    }
+  };
+
+  const finishWorkout = async () => {
     setIsPaused(true);
     setWorkoutFinished(true);
+
+    let tempString = '--°C';
+    if (location) {
+      tempString = await fetchTemperature(location.latitude, location.longitude);
+    }
 
     const now = new Date();
     const monthName = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
@@ -145,6 +184,7 @@ export default function App() {
       pace: getPace(),
       elevation: Math.round(elevationGain),
       calories: (distance * 65).toFixed(0),
+      temperature: tempString,
       route: [...routeCoordinates]
     };
 
@@ -155,12 +195,14 @@ export default function App() {
     setDistance(0);
     setDuration(0);
     setElevationGain(0);
-    setLastAltitude(null);
+    lastAltitudeRef.current = null;
     setRouteCoordinates([]);
     setLocation(null);
     setWorkoutFinished(false);
     setIsPaused(true);
     setStatusMsg('PRONTO');
+    startTimeRef.current = null;
+    accumulatedTimeRef.current = 0;
   };
 
   const deleteWorkout = (id) => {
@@ -179,6 +221,7 @@ export default function App() {
     return history.filter((item) => item.monthYear === currentMonthLabel);
   };
 
+  // HTML com OpenStreetMap (Leaflet)
   const getMapHtml = (coords) => {
     const defaultLat = coords && coords.length > 0 ? coords[0].latitude : (location ? location.latitude : -29.6872);
     const defaultLng = coords && coords.length > 0 ? coords[0].longitude : (location ? location.longitude : -51.1306);
@@ -218,6 +261,67 @@ export default function App() {
                 weight: 2
               }).addTo(map);
             }
+          </script>
+        </body>
+      </html>
+    `;
+  };
+
+  // HTML com Canvas para o Gráfico de Altitude (Subidas/Descidas)
+  const getElevationChartHtml = (coords) => {
+    const altitudes = (coords || []).map(c => c.altitude || 0);
+    const altArray = JSON.stringify(altitudes.length > 0 ? altitudes : [0, 0]);
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+          <style>
+            body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #13151C; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: sans-serif; }
+            canvas { width: 92%; height: 80%; }
+            .chart-title { color: '#6C727F'; font-size: 10px; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+          </style>
+        </head>
+        <body>
+          <canvas id="chart"></canvas>
+          <script>
+            const data = ${altArray};
+            const canvas = document.getElementById('chart');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = canvas.offsetHeight * 2;
+
+            const min = Math.min(...data);
+            const max = Math.max(...data);
+            const range = (max - min) || 1;
+
+            const padding = 20;
+            const width = canvas.width - (padding * 2);
+            const height = canvas.height - (padding * 2);
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#00D26A';
+            ctx.lineWidth = 4;
+
+            data.forEach((val, i) => {
+              const x = padding + (i / (data.length - 1 || 1)) * width;
+              const y = canvas.height - padding - ((val - min) / range) * height;
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Preenchimento com Gradiente Neon
+            ctx.lineTo(padding + width, canvas.height - padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            ctx.closePath();
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, 'rgba(0, 210, 106, 0.35)');
+            gradient.addColorStop(1, 'rgba(0, 210, 106, 0.0)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
           </script>
         </body>
       </html>
@@ -280,7 +384,7 @@ export default function App() {
                 activeOpacity={0.7}
               >
                 <View style={styles.historyHeader}>
-                  <Text style={styles.historyDate}>🗓️ {item.date}</Text>
+                  <Text style={styles.historyDate}>🗓️ {item.date} {item.temperature ? `• 🌤️ ${item.temperature}` : ''}</Text>
                   <Text style={styles.historyDistance}>{item.distance} KM ➔</Text>
                 </View>
                 <View style={styles.historyStatsRow}>
@@ -321,6 +425,16 @@ export default function App() {
                 />
               </View>
 
+              <Text style={styles.sectionLabel}>📈 PERFIL DE ELEVAÇÃO (SUBIDAS/DESCIDAS)</Text>
+              <View style={styles.chartContainer}>
+                <WebView
+                  originWhitelist={['*']}
+                  source={{ html: getElevationChartHtml(routeCoordinates) }}
+                  style={styles.map}
+                  scrollEnabled={false}
+                />
+              </View>
+
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{distance.toFixed(2)}</Text>
@@ -335,8 +449,16 @@ export default function App() {
                   <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
                 </View>
                 <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{Math.round(elevationGain)} m</Text>
+                  <Text style={styles.statCardLabel}>GANHO ELEVAÇÃO</Text>
+                </View>
+                <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{(distance * 65).toFixed(0)}</Text>
                   <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{history[0]?.temperature || '--°C'}</Text>
+                  <Text style={styles.statCardLabel}>TEMPERATURA</Text>
                 </View>
               </View>
               <TouchableOpacity style={styles.saveButton} onPress={resetWorkout}>
@@ -349,15 +471,6 @@ export default function App() {
                 <View style={[styles.statusBadge, !isPaused && styles.statusBadgeActive]}>
                   <Text style={styles.statusBadgeText}>{statusMsg}</Text>
                 </View>
-              </View>
-
-              <View style={styles.mapContainer}>
-                <WebView
-                  originWhitelist={['*']}
-                  source={{ html: getMapHtml(routeCoordinates) }}
-                  style={styles.map}
-                  scrollEnabled={false}
-                />
               </View>
 
               <View style={styles.mainDisplay}>
@@ -406,7 +519,7 @@ export default function App() {
         </ScrollView>
       )}
 
-      {/* Modal de Detalhes com Botão Excluir */}
+      {/* Modal de Detalhes do Treino do Histórico */}
       <Modal
         visible={selectedWorkout !== null}
         animationType="slide"
@@ -414,58 +527,82 @@ export default function App() {
         onRequestClose={() => setSelectedWorkout(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>DETALHES DO TREINO</Text>
-            <Text style={styles.modalDate}>{selectedWorkout?.date}</Text>
+          <ScrollView contentContainerStyle={{ paddingVertical: 20 }}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>DETALHES DO TREINO</Text>
+              <Text style={styles.modalDate}>
+                {selectedWorkout?.date} {selectedWorkout?.temperature ? `• 🌤️ ${selectedWorkout.temperature}` : ''}
+              </Text>
 
-            <View style={styles.modalMapContainer}>
-              {selectedWorkout && (
-                <WebView
-                  originWhitelist={['*']}
-                  source={{ html: getMapHtml(selectedWorkout.route) }}
-                  style={styles.map}
-                  scrollEnabled={false}
-                />
-              )}
-            </View>
+              <View style={styles.modalMapContainer}>
+                {selectedWorkout && (
+                  <WebView
+                    originWhitelist={['*']}
+                    source={{ html: getMapHtml(selectedWorkout.route) }}
+                    style={styles.map}
+                    scrollEnabled={false}
+                  />
+                )}
+              </View>
 
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statCardValue}>{selectedWorkout?.distance}</Text>
-                <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
+              <Text style={styles.sectionLabel}>📈 PERFIL DE ELEVAÇÃO</Text>
+              <View style={styles.chartContainer}>
+                {selectedWorkout && (
+                  <WebView
+                    originWhitelist={['*']}
+                    source={{ html: getElevationChartHtml(selectedWorkout.route) }}
+                    style={styles.map}
+                    scrollEnabled={false}
+                  />
+                )}
               </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statCardValue}>{selectedWorkout?.duration}</Text>
-                <Text style={styles.statCardLabel}>DURAÇÃO</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statCardValue}>{selectedWorkout?.pace}</Text>
-                <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statCardValue}>{selectedWorkout?.calories}</Text>
-                <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
-              </View>
-            </View>
 
-            <View style={styles.modalActionsRow}>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => deleteWorkout(selectedWorkout?.id)}
-              >
-                <Text style={styles.deleteButtonText}>EXCLUIR TREINO</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedWorkout(null)}>
-                <Text style={styles.closeButtonText}>FECHAR</Text>
-              </TouchableOpacity>
+              <View style={styles.statsGrid}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{selectedWorkout?.distance}</Text>
+                  <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{selectedWorkout?.duration}</Text>
+                  <Text style={styles.statCardLabel}>DURAÇÃO</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{selectedWorkout?.pace}</Text>
+                  <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{selectedWorkout?.elevation} m</Text>
+                  <Text style={styles.statCardLabel}>GANHO ELEVAÇÃO</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{selectedWorkout?.calories}</Text>
+                  <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardValue}>{selectedWorkout?.temperature || '--°C'}</Text>
+                  <Text style={styles.statCardLabel}>TEMPERATURA</Text>
+                </View>
+              </View>
+
+              <View style={styles.modalActionsRow}>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => deleteWorkout(selectedWorkout?.id)}
+                >
+                  <Text style={styles.deleteButtonText}>EXCLUIR TREINO</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedWorkout(null)}>
+                  <Text style={styles.closeButtonText}>FECHAR</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
   );
 }
-  const styles = StyleSheet.create({
+wconst styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
   headerContainer: {
@@ -503,6 +640,7 @@ export default function App() {
   statusBadgeActive: { backgroundColor: '#00D26A20', borderColor: '#00D26A' },
   statusBadgeText: { color: '#00D26A', fontSize: 10, fontWeight: '800' },
 
+  sectionLabel: { color: '#6C727F', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 6 },
   mapContainer: {
     width: '100%',
     height: 180,
@@ -513,32 +651,42 @@ export default function App() {
     marginBottom: 10,
     backgroundColor: '#090A0F',
   },
+  chartContainer: {
+    width: '100%',
+    height: 130,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1E222D',
+    marginBottom: 10,
+    backgroundColor: '#13151C',
+  },
   map: { width: '100%', height: '100%', backgroundColor: '#090A0F' },
 
-  mainDisplay: { alignItems: 'center', marginVertical: 10 },
-  mainValue: { color: '#FFFFFF', fontSize: 60, fontWeight: '900', letterSpacing: -2 },
-  mainLabel: { color: '#6C727F', fontSize: 12, fontWeight: '700', letterSpacing: 2 },
+  mainDisplay: { alignItems: 'center', marginVertical: 20 },
+  mainValue: { color: '#FFFFFF', fontSize: 72, fontWeight: '900', letterSpacing: -2 },
+  mainLabel: { color: '#6C727F', fontSize: 13, fontWeight: '700', letterSpacing: 2 },
 
   cardsRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   card: {
     flex: 1,
     backgroundColor: '#13151C',
     borderRadius: 16,
-    padding: 12,
+    padding: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#1E222D',
   },
-  cardValue: { color: '#FFFFFF', fontSize: 20, fontWeight: '700' },
+  cardValue: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
   cardLabel: { color: '#6C727F', fontSize: 9, fontWeight: '700', marginTop: 4 },
 
-  actionContainer: { marginTop: 10, gap: 10 },
-  primaryButton: { paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
+  actionContainer: { marginTop: 20, gap: 10 },
+  primaryButton: { paddingVertical: 18, borderRadius: 30, alignItems: 'center' },
   startButton: { backgroundColor: '#00D26A' },
   pauseButton: { backgroundColor: '#FF9F0A' },
   stopButton: {
     backgroundColor: '#FF3B30',
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderRadius: 30,
     alignItems: 'center',
   },
@@ -551,12 +699,12 @@ export default function App() {
     width: '48%',
     backgroundColor: '#13151C',
     borderRadius: 16,
-    padding: 14,
+    padding: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#1E222D',
   },
-  statCardValue: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
+  statCardValue: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
   statCardLabel: { color: '#6C727F', fontSize: 9, fontWeight: '700', marginTop: 4 },
   saveButton: { backgroundColor: '#007AFF', paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
@@ -622,7 +770,7 @@ export default function App() {
   modalDate: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginBottom: 16 },
   modalMapContainer: {
     width: '100%',
-    height: 200,
+    height: 180,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
@@ -652,4 +800,4 @@ export default function App() {
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
-          
+        
