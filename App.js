@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Dimensions } from 'react-native';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
+import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-
-const { width } = Dimensions.get('window');
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('workout');
@@ -18,9 +16,9 @@ export default function App() {
   const [statusMsg, setStatusMsg] = useState('PRONTO');
 
   const [history, setHistory] = useState([]);
-  const mapRef = useRef(null);
+  const [selectedWorkout, setSelectedWorkout] = useState(null);
 
-  // Pedir Permissão e Rastrear GPS Nativo
+  // Rastreamento GPS Nativo
   useEffect(() => {
     let locationSubscription;
 
@@ -54,15 +52,6 @@ export default function App() {
           }
 
           setLocation(newCoords);
-
-          if (mapRef.current) {
-            mapRef.current.animateToRegion({
-              latitude,
-              longitude,
-              latitudeDelta: 0.005,
-              longitudeDelta: 0.005,
-            }, 1000);
-          }
 
           setRouteCoordinates((prev) => {
             if (prev.length > 0) {
@@ -181,6 +170,52 @@ export default function App() {
     }, {});
   };
 
+  // HTML com OpenStreetMap (Leaflet) sem chave de API
+  const getMapHtml = (coords) => {
+    const defaultLat = coords && coords.length > 0 ? coords[0].latitude : (location ? location.latitude : -29.6872);
+    const defaultLng = coords && coords.length > 0 ? coords[0].longitude : (location ? location.longitude : -51.1306);
+    const polylineArray = JSON.stringify((coords || []).map(c => [c.latitude, c.longitude]));
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+          <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+          <style>
+            body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #090A0F; }
+            .leaflet-control-attribution { display: none !important; }
+          </style>
+        </head>
+        <body>
+          <div id="map"></div>
+          <script>
+            const map = L.map('map', { zoomControl: false }).setView([${defaultLat}, ${defaultLng}], 16);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              maxZoom: 19
+            }).addTo(map);
+
+            const latlngs = ${polylineArray};
+            if (latlngs.length > 0) {
+              const polyline = L.polyline(latlngs, { color: '#00D26A', weight: 5 }).addTo(map);
+              map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+            } else {
+              L.circleMarker([${defaultLat}, ${defaultLng}], {
+                color: '#FFFFFF',
+                fillColor: '#00D26A',
+                fillOpacity: 1,
+                radius: 7,
+                weight: 2
+              }).addTo(map);
+            }
+          </script>
+        </body>
+      </html>
+    `;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
@@ -221,10 +256,15 @@ export default function App() {
                     <Text style={styles.monthTotalKm}>{totalMonthKm} KM</Text>
                   </View>
                   {workouts.map((item) => (
-                    <View key={item.id} style={styles.historyCard}>
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.historyCard}
+                      onPress={() => setSelectedWorkout(item)}
+                      activeOpacity={0.7}
+                    >
                       <View style={styles.historyHeader}>
                         <Text style={styles.historyDate}>🗓️ {item.date}</Text>
-                        <Text style={styles.historyDistance}>{item.distance} KM</Text>
+                        <Text style={styles.historyDistance}>{item.distance} KM ➔</Text>
                       </View>
                       <View style={styles.historyStatsRow}>
                         <View style={styles.historyStatItem}>
@@ -244,13 +284,13 @@ export default function App() {
                           <Text style={styles.historyStatLabel}>CALORIAS</Text>
                         </View>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               );
             })
           )}
-        ScrollView>
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {workoutFinished ? (
@@ -259,25 +299,12 @@ export default function App() {
               <Text style={styles.summarySubHeader}>Treino salvo automaticamente no seu histórico.</Text>
               
               <View style={styles.mapContainer}>
-                <MapView
+                <WebView
+                  originWhitelist={['*']}
+                  source={{ html: getMapHtml(routeCoordinates) }}
                   style={styles.map}
-                  mapType="hybrid"
-                  initialRegion={location ? {
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
-                  } : {
-                    latitude: -29.6872,
-                    longitude: -51.1306,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
-                >
-                  {routeCoordinates.length > 0 && (
-                    <Polyline coordinates={routeCoordinates} strokeColor="#00D26A" strokeWidth={5} />
-                  )}
-                </MapView>
+                  scrollEnabled={false}
+                />
               </View>
 
               <View style={styles.statsGrid}>
@@ -311,26 +338,12 @@ export default function App() {
               </View>
 
               <View style={styles.mapContainer}>
-                <MapView
-                  ref={mapRef}
+                <WebView
+                  originWhitelist={['*']}
+                  source={{ html: getMapHtml(routeCoordinates) }}
                   style={styles.map}
-                  mapType="hybrid"
-                  initialRegion={{
-                    latitude: location ? location.latitude : -29.6872,
-                    longitude: location ? location.longitude : -51.1306,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
-                  }}
-                >
-                  {location && (
-                    <Marker coordinate={location} title="Você está aqui">
-                      <View style={styles.userMarker} />
-                    </Marker>
-                  )}
-                  {routeCoordinates.length > 0 && (
-                    <Polyline coordinates={routeCoordinates} strokeColor="#00D26A" strokeWidth={5} />
-                  )}
-                </MapView>
+                  scrollEnabled={false}
+                />
               </View>
 
               <View style={styles.mainDisplay}>
@@ -378,10 +391,59 @@ export default function App() {
           )}
         </ScrollView>
       )}
+
+      {/* Modal de Detalhes do Treino do Histórico */}
+      <Modal
+        visible={selectedWorkout !== null}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSelectedWorkout(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>DETALHES DO TREINO</Text>
+            <Text style={styles.modalDate}>{selectedWorkout?.date}</Text>
+
+            <View style={styles.modalMapContainer}>
+              {selectedWorkout && (
+                <WebView
+                  originWhitelist={['*']}
+                  source={{ html: getMapHtml(selectedWorkout.route) }}
+                  style={styles.map}
+                  scrollEnabled={false}
+                />
+              )}
+            </View>
+
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statCardValue}>{selectedWorkout?.distance}</Text>
+                <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statCardValue}>{selectedWorkout?.duration}</Text>
+                <Text style={styles.statCardLabel}>DURAÇÃO</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statCardValue}>{selectedWorkout?.pace}</Text>
+                <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statCardValue}>{selectedWorkout?.calories}</Text>
+                <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedWorkout(null)}>
+              <Text style={styles.closeButtonText}>FECHAR</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
-              }
-        const styles = StyleSheet.create({
+                             }
+    const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
   headerContainer: {
@@ -427,16 +489,9 @@ export default function App() {
     borderWidth: 1,
     borderColor: '#1E222D',
     marginBottom: 10,
+    backgroundColor: '#090A0F',
   },
-  map: { width: '100%', height: '100%' },
-  userMarker: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#00D26A',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
+  map: { width: '100%', height: '100%', backgroundColor: '#090A0F' },
 
   mainDisplay: { alignItems: 'center', marginVertical: 10 },
   mainValue: { color: '#FFFFFF', fontSize: 60, fontWeight: '900', letterSpacing: -2 },
@@ -523,5 +578,40 @@ export default function App() {
   historyStatItem: { alignItems: 'center' },
   historyStatValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   historyStatLabel: { color: '#6C727F', fontSize: 8, marginTop: 2 },
+
+  // Estilos do Modal de Detalhes
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  modalContent: {
+    backgroundColor: '#13151C',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#1E222D',
+  },
+  modalTitle: { color: '#00D26A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
+  modalDate: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginBottom: 16 },
+  modalMapContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1E222D',
+    marginBottom: 10,
+    backgroundColor: '#090A0F',
+  },
+  closeButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 14,
+    borderRadius: 30,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14 },
 });
-                    
+    
