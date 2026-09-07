@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Dimensions } from 'react-native';
-import MapView, { UrlTile, Polyline, Marker } from 'react-native-maps';
+import MapView, { Polyline, Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 
 const { width } = Dimensions.get('window');
@@ -261,22 +261,19 @@ export default function App() {
               <View style={styles.mapContainer}>
                 <MapView
                   style={styles.map}
+                  mapType="hybrid"
                   initialRegion={location ? {
                     latitude: location.latitude,
                     longitude: location.longitude,
                     latitudeDelta: 0.005,
                     longitudeDelta: 0.005,
                   } : {
-                    latitude: -29.68,
-                    longitude: -51.13,
+                    latitude: -29.6872,
+                    longitude: -51.1306,
                     latitudeDelta: 0.01,
                     longitudeDelta: 0.01,
                   }}
                 >
-                  <UrlTile
-                    urlTemplate="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    maximumZ={19}
-                  />
                   {routeCoordinates.length > 0 && (
                     <Polyline coordinates={routeCoordinates} strokeColor="#00D26A" strokeWidth={5} />
                   )}
@@ -313,11 +310,11 @@ export default function App() {
                 </View>
               </View>
 
-              {/* Mapa de Satélite em Tempo Real */}
               <View style={styles.mapContainer}>
                 <MapView
                   ref={mapRef}
                   style={styles.map}
+                  mapType="hybrid"
                   initialRegion={{
                     latitude: location ? location.latitude : -29.6872,
                     longitude: location ? location.longitude : -51.1306,
@@ -325,10 +322,6 @@ export default function App() {
                     longitudeDelta: 0.005,
                   }}
                 >
-                  <UrlTile
-                    urlTemplate="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    maximumZ={19}
-                  />
                   {location && (
                     <Marker coordinate={location} title="Você está aqui">
                       <View style={styles.userMarker} />
@@ -387,8 +380,8 @@ export default function App() {
       )}
     </SafeAreaView>
   );
-               }
-               const styles = StyleSheet.create({
+}
+const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
   headerContainer: {
@@ -531,4 +524,4 @@ export default function App() {
   historyStatValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   historyStatLabel: { color: '#6C727F', fontSize: 8, marginTop: 2 },
 });
-                 
+                    
