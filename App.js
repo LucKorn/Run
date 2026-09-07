@@ -526,7 +526,10 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     marginBottom: 10,
   },
-  historyDate: { color: '#6C727F', fontSize: 12, fontWeight: '600' },
+   historyDate: { color: '#6C727F', fontSize: 12, fontWeight: '600' },
   historyDistance: { color: '#00D26A', fontSize: 16, fontWeight: '900' },
   historyStatsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  historyStatItem: { alignItems: 'cent
+  historyStatItem: { alignItems: 'center' },
+  historyStatValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  historyStatLabel: { color: '#6C727F', fontSize: 8, marginTop: 2 },
+});
