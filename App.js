@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Dimensions } from 'react-native';
+import MapView, { UrlTile, Polyline, Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
+
+const { width } = Dimensions.get('window');
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('workout');
@@ -15,6 +18,7 @@ export default function App() {
   const [statusMsg, setStatusMsg] = useState('PRONTO');
 
   const [history, setHistory] = useState([]);
+  const mapRef = useRef(null);
 
   // Pedir Permissão e Rastrear GPS Nativo do Android
   useEffect(() => {
@@ -50,6 +54,16 @@ export default function App() {
           }
 
           setLocation(newCoords);
+
+          // Centralizar mapa na localização atual
+          if (mapRef.current) {
+            mapRef.current.animateToRegion({
+              latitude,
+              longitude,
+              latitudeDelta: 0.005,
+              longitudeDelta: 0.005,
+            }, 1000);
+          }
 
           setRouteCoordinates((prev) => {
             if (prev.length > 0) {
@@ -141,6 +155,7 @@ export default function App() {
       pace: getPace(),
       elevation: Math.round(elevationGain),
       calories: (distance * 65).toFixed(0),
+      route: [...routeCoordinates]
     };
 
     setHistory((prev) => [newWorkoutItem, ...prev]);
@@ -244,6 +259,31 @@ export default function App() {
               <Text style={styles.summaryHeader}>TREINO CONCLUÍDO! 🥇</Text>
               <Text style={styles.summarySubHeader}>Treino salvo automaticamente no seu histórico.</Text>
               
+              <View style={styles.mapContainer}>
+                <MapView
+                  style={styles.map}
+                  initialRegion={location ? {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    latitudeDelta: 0.005,
+                    longitudeDelta: 0.005,
+                  } : {
+                    latitude: -29.68,
+                    longitude: -51.13,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                >
+                  <UrlTile
+                    urlTemplate="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    maximumZ={19}
+                  />
+                  {routeCoordinates.length > 0 && (
+                    <Polyline coordinates={routeCoordinates} strokeColor="#00D26A" strokeWidth={5} />
+                  )}
+                </MapView>
+              </View>
+
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{distance.toFixed(2)}</Text>
@@ -272,6 +312,33 @@ export default function App() {
                 <View style={[styles.statusBadge, !isPaused && styles.statusBadgeActive]}>
                   <Text style={styles.statusBadgeText}>{statusMsg}</Text>
                 </View>
+              </View>
+
+              {/* Mapa de Satélite ArcGIS em Tempo Real */}
+              <View style={styles.mapContainer}>
+                <MapView
+                  ref={mapRef}
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: location ? location.latitude : -29.6872,
+                    longitude: location ? location.longitude : -51.1306,
+                    latitudeDelta: 0.005,
+                    longitudeDelta: 0.005,
+                  }}
+                >
+                  <UrlTile
+                    urlTemplate="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    maximumZ={19}
+                  />
+                  {location && (
+                    <Marker coordinate={location} title="Você está aqui">
+                      <View style={styles.userMarker} />
+                    </Marker>
+                  )}
+                  {routeCoordinates.length > 0 && (
+                    <Polyline coordinates={routeCoordinates} strokeColor="#00D26A" strokeWidth={5} />
+                  )}
+                </MapView>
               </View>
 
               <View style={styles.mainDisplay}>
@@ -349,7 +416,7 @@ const styles = StyleSheet.create({
   tabText: { color: '#6C727F', fontSize: 10, fontWeight: '800' },
   tabTextActive: { color: '#FFFFFF' },
 
-  badgeContainer: { alignItems: 'center', marginTop: 10 },
+  badgeContainer: { alignItems: 'center', marginTop: 10, marginBottom: 10 },
   statusBadge: {
     backgroundColor: '#13151C',
     paddingHorizontal: 14,
@@ -361,8 +428,27 @@ const styles = StyleSheet.create({
   statusBadgeActive: { backgroundColor: '#00D26A20', borderColor: '#00D26A' },
   statusBadgeText: { color: '#00D26A', fontSize: 10, fontWeight: '800' },
 
-  mainDisplay: { alignItems: 'center', marginVertical: 14 },
-  mainValue: { color: '#FFFFFF', fontSize: 64, fontWeight: '900', letterSpacing: -2 },
+  mapContainer: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1E222D',
+    marginBottom: 10,
+  },
+  map: { width: '100%', height: '100%' },
+  userMarker: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#00D26A',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+
+  mainDisplay: { alignItems: 'center', marginVertical: 10 },
+  mainValue: { color: '#FFFFFF', fontSize: 60, fontWeight: '900', letterSpacing: -2 },
   mainLabel: { color: '#6C727F', fontSize: 12, fontWeight: '700', letterSpacing: 2 },
 
   cardsRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
@@ -378,7 +464,7 @@ const styles = StyleSheet.create({
   cardValue: { color: '#FFFFFF', fontSize: 20, fontWeight: '700' },
   cardLabel: { color: '#6C727F', fontSize: 9, fontWeight: '700', marginTop: 4 },
 
-  actionContainer: { marginTop: 12, gap: 10 },
+  actionContainer: { marginTop: 10, gap: 10 },
   primaryButton: { paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
   startButton: { backgroundColor: '#00D26A' },
   pauseButton: { backgroundColor: '#FF9F0A' },
@@ -392,7 +478,7 @@ const styles = StyleSheet.create({
 
   summaryHeader: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 8 },
   summarySubHeader: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginBottom: 10 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 16 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
   statCard: {
     width: '48%',
     backgroundColor: '#13151C',
@@ -443,7 +529,4 @@ const styles = StyleSheet.create({
   historyDate: { color: '#6C727F', fontSize: 12, fontWeight: '600' },
   historyDistance: { color: '#00D26A', fontSize: 16, fontWeight: '900' },
   historyStatsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  historyStatItem: { alignItems: 'center' },
-  historyStatValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  historyStatLabel: { color: '#6C727F', fontSize: 8, marginTop: 2 },
-});
+  historyStatItem: { alignItems: 'cent
