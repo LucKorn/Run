@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import * as Location from 'expo-location';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState('workout'); // 'workout' | 'history'
+  const [currentTab, setCurrentTab] = useState('workout');
   const [location, setLocation] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [isPaused, setIsPaused] = useState(true);
@@ -13,62 +14,72 @@ export default function App() {
   const [workoutFinished, setWorkoutFinished] = useState(false);
   const [statusMsg, setStatusMsg] = useState('PRONTO');
 
-  // Histórico de treinos
   const [history, setHistory] = useState([]);
 
-  // GPS & Elevação
+  // Pedir Permissão e Rastrear GPS Nativo do Android
   useEffect(() => {
-    let watchId;
-    if (!isPaused && !workoutFinished) {
-      setStatusMsg('EM ANDAMENTO');
-      if ('geolocation' in navigator) {
-        watchId = navigator.geolocation.watchPosition(
-          (position) => {
-            const currentAlt = position.coords.altitude;
-            const newCoords = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
+    let locationSubscription;
 
-            if (currentAlt !== null && currentAlt !== undefined) {
-              if (lastAltitude !== null && currentAlt > lastAltitude) {
-                const altDiff = currentAlt - lastAltitude;
-                if (altDiff > 0.5) {
-                  setElevationGain((prevGain) => prevGain + altDiff);
-                }
-              }
-              setLastAltitude(currentAlt);
-            }
-
-            setLocation(newCoords);
-            setRouteCoordinates((prev) => {
-              if (prev.length > 0) {
-                const last = prev[prev.length - 1];
-                const addedDist = calculateDistance(
-                  last.latitude,
-                  last.longitude,
-                  newCoords.latitude,
-                  newCoords.longitude
-                );
-                setDistance((d) => d + addedDist);
-              }
-              return [...prev, newCoords];
-            });
-          },
-          (error) => setStatusMsg('ERRO GPS'),
-          { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
-        );
+    const startLocationUpdates = async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setStatusMsg('SEM PERMISSÃO GPS');
+        return;
       }
-    } else if (isPaused && routeCoordinates.length > 0 && !workoutFinished) {
+
+      setStatusMsg('EM ANDAMENTO');
+
+      locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 2000,
+          distanceInterval: 3,
+        },
+        (newLocation) => {
+          const { latitude, longitude, altitude } = newLocation.coords;
+          const newCoords = { latitude, longitude };
+
+          if (altitude !== null && altitude !== undefined) {
+            if (lastAltitude !== null && altitude > lastAltitude) {
+              const altDiff = altitude - lastAltitude;
+              if (altDiff > 0.5) {
+                setElevationGain((prev) => prev + altDiff);
+              }
+            }
+            setLastAltitude(altitude);
+          }
+
+          setLocation(newCoords);
+
+          setRouteCoordinates((prev) => {
+            if (prev.length > 0) {
+              const last = prev[prev.length - 1];
+              const addedDist = calculateDistance(
+                last.latitude,
+                last.longitude,
+                latitude,
+                longitude
+              );
+              setDistance((d) => d + addedDist);
+            }
+            return [...prev, newCoords];
+          });
+        }
+      );
+    };
+
+    if (!isPaused && !workoutFinished) {
+      startLocationUpdates();
+    } else if (isPaused && !workoutFinished && duration > 0) {
       setStatusMsg('PAUSADO');
     }
 
     return () => {
-      if (watchId && 'geolocation' in navigator) {
-        navigator.geolocation.clearWatch(watchId);
+      if (locationSubscription) {
+        locationSubscription.remove();
       }
     };
-  }, [isPaused, workoutFinished, lastAltitude]);
+  }, [isPaused, workoutFinished]);
 
   // Cronômetro
   useEffect(() => {
@@ -101,12 +112,6 @@ export default function App() {
     return `${paceMins}'${paceSecs < 10 ? '0' : ''}${paceSecs}"`;
   };
 
-  const getAvgSpeed = () => {
-    if (distance <= 0.001 || duration === 0) return "0.0";
-    const hours = duration / 3600;
-    return (distance / hours).toFixed(1);
-  };
-
   const formatTime = (secs) => {
     const hrs = Math.floor(secs / 3600);
     const mins = Math.floor((secs % 3600) / 60);
@@ -114,7 +119,6 @@ export default function App() {
     return `${hrs > 0 ? `${hrs}:` : ''}${mins < 10 ? '0' : ''}${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
   };
 
-  // Finalizar e Salvar Treino
   const finishWorkout = () => {
     setIsPaused(true);
     setWorkoutFinished(true);
@@ -137,7 +141,6 @@ export default function App() {
       pace: getPace(),
       elevation: Math.round(elevationGain),
       calories: (distance * 65).toFixed(0),
-      location: location,
     };
 
     setHistory((prev) => [newWorkoutItem, ...prev]);
@@ -155,7 +158,6 @@ export default function App() {
     setStatusMsg('PRONTO');
   };
 
-  // Agrupar treinos do histórico por mês
   const groupHistoryByMonth = (items) => {
     return items.reduce((acc, item) => {
       const monthKey = item.monthYear || 'OUTROS';
@@ -165,35 +167,12 @@ export default function App() {
     }, {});
   };
 
-  // RENDERIZAÇÃO DO MAPA MODO SATÉLITE (Esri World Imagery)
-  const renderWebMap = () => {
-    if (!location) return <Text style={styles.mapText}>📍 Sem dados de GPS disponíveis</Text>;
-
-    // URL do servidor Esri ArcGIS World Imagery (Satélite)
-    const mapUrl = `https://www.arcgis.com/home/webmap/templates/OnePane/basicviewer/embed.html?webmap=10134f4792db44f69181132f8352b412&gc=true&marker=${location.longitude},${location.latitude}&level=16`;
-
-    return (
-      <View style={styles.mapWebContainer}>
-        <iframe
-          title="Mapa de Satélite"
-          width="100%"
-          height="180"
-          frameBorder="0"
-          scrolling="no"
-          marginHeight="0"
-          marginWidth="0"
-          src={mapUrl}
-          style={{ borderRadius: 12, border: 'none' }}
-        />
-      </View>
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header Fixo de Navegação */}
       <View style={styles.headerContainer}>
-        <Text style={styles.appTitle}>RUNNER<Text style={styles.appTitleAccent}>GO</Text></Text>
+        <Text style={styles.appTitle}>
+          RUNNER<Text style={styles.appTitleAccent}>GO</Text>
+        </Text>
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tabButton, currentTab === 'workout' && styles.tabButtonActive]}
@@ -212,25 +191,21 @@ export default function App() {
         </View>
       </View>
 
-      {/* ABA 2: HISTÓRICO AGRUPADO POR MÊS */}
       {currentTab === 'history' ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {history.length === 0 ? (
             <View style={styles.emptyHistory}>
               <Text style={styles.emptyText}>Nenhum treino registrado ainda.</Text>
-              <Text style={styles.emptySubText}>Inicie uma caminhada/corrida para salvar seu histórico!</Text>
             </View>
           ) : (
             Object.entries(groupHistoryByMonth(history)).map(([monthGroup, workouts]) => {
               const totalMonthKm = workouts.reduce((sum, item) => sum + parseFloat(item.distance), 0).toFixed(2);
-
               return (
                 <View key={monthGroup} style={styles.monthSection}>
                   <View style={styles.monthHeader}>
                     <Text style={styles.monthTitle}>📅 {monthGroup}</Text>
                     <Text style={styles.monthTotalKm}>{totalMonthKm} KM</Text>
                   </View>
-
                   {workouts.map((item) => (
                     <View key={item.id} style={styles.historyCard}>
                       <View style={styles.historyHeader}>
@@ -263,57 +238,35 @@ export default function App() {
           )}
         </ScrollView>
       ) : (
-        /* ABA 1: TREINO EM ANDAMENTO OU RESUMO */
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {workoutFinished ? (
-            /* RESUMO PÓS-TREINO COM MAPA DE SATÉLITE */
             <View>
               <Text style={styles.summaryHeader}>TREINO CONCLUÍDO! 🥇</Text>
               <Text style={styles.summarySubHeader}>Treino salvo automaticamente no seu histórico.</Text>
-
-              <View style={styles.mapCard}>
-                <Text style={styles.mapCardTitle}>MAPA DE SATÉLITE DO PERCURSO</Text>
-                {renderWebMap()}
-              </View>
-
+              
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{distance.toFixed(2)}</Text>
                   <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
                 </View>
-
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{Math.round(elevationGain)} m</Text>
-                  <Text style={styles.statCardLabel}>GANHO ELEVAÇÃO</Text>
-                </View>
-
                 <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{formatTime(duration)}</Text>
                   <Text style={styles.statCardLabel}>DURAÇÃO</Text>
                 </View>
-
                 <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{getPace()}</Text>
                   <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
                 </View>
-
                 <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{(distance * 65).toFixed(0)}</Text>
                   <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
                 </View>
-
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{getAvgSpeed()}</Text>
-                  <Text style={styles.statCardLabel}>VEL. MÉDIA (KM/H)</Text>
-                </View>
               </View>
-
               <TouchableOpacity style={styles.saveButton} onPress={resetWorkout}>
                 <Text style={styles.saveButtonText}>INICIAR NOVO TREINO</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            /* TELA DE ATIVIDADE EM ANDAMENTO */
             <View>
               <View style={styles.badgeContainer}>
                 <View style={[styles.statusBadge, !isPaused && styles.statusBadgeActive]}>
@@ -331,7 +284,6 @@ export default function App() {
                   <Text style={styles.cardValue}>{formatTime(duration)}</Text>
                   <Text style={styles.cardLabel}>TEMPO</Text>
                 </View>
-
                 <View style={styles.card}>
                   <Text style={styles.cardValue}>{getPace()}</Text>
                   <Text style={styles.cardLabel}>PACE (MIN/KM)</Text>
@@ -343,7 +295,6 @@ export default function App() {
                   <Text style={styles.cardValue}>{Math.round(elevationGain)} m</Text>
                   <Text style={styles.cardLabel}>GANHO ELEVAÇÃO</Text>
                 </View>
-
                 <View style={styles.card}>
                   <Text style={styles.cardValue}>{(distance * 65).toFixed(0)}</Text>
                   <Text style={styles.cardLabel}>KCAL ESTIMADAS</Text>
@@ -358,7 +309,7 @@ export default function App() {
                   <Text style={styles.buttonText}>{isPaused ? 'INICIAR TREINO' : 'PAUSAR'}</Text>
                 </TouchableOpacity>
 
-                {isPaused && routeCoordinates.length > 0 && (
+                {duration > 0 && (
                   <TouchableOpacity style={styles.stopButton} onPress={finishWorkout}>
                     <Text style={styles.buttonText}>FINALIZAR E SALVAR</Text>
                   </TouchableOpacity>
@@ -439,21 +390,9 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 
-  mapCard: {
-    backgroundColor: '#13151C',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#1E222D',
-    marginVertical: 12,
-  },
-  mapCardTitle: { color: '#6C727F', fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
-  mapWebContainer: { borderRadius: 12, overflow: 'hidden', height: 180 },
-  mapText: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginVertical: 20 },
-
   summaryHeader: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 8 },
   summarySubHeader: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginBottom: 10 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 16 },
   statCard: {
     width: '48%',
     backgroundColor: '#13151C',
@@ -468,7 +407,6 @@ const styles = StyleSheet.create({
   saveButton: { backgroundColor: '#007AFF', paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
 
-  // Histórico
   monthSection: { marginBottom: 20 },
   monthHeader: {
     flexDirection: 'row',
@@ -486,7 +424,6 @@ const styles = StyleSheet.create({
   monthTotalKm: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   emptyHistory: { alignItems: 'center', marginTop: 40, padding: 20 },
   emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  emptySubText: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginTop: 6 },
   historyCard: {
     backgroundColor: '#13151C',
     borderRadius: 16,
@@ -510,4 +447,3 @@ const styles = StyleSheet.create({
   historyStatValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   historyStatLabel: { color: '#6C727F', fontSize: 8, marginTop: 2 },
 });
-    
