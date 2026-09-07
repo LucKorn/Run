@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "RUNNERGO",
+    "slug": "runner-go",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.runnergo.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O RUNNERGO precisa do GPS em segundo plano para gravar seu treino com a tela desligada."
+        }
+      ]
+    ]
+  }
+}
