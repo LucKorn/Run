@@ -4,9 +4,33 @@
     "slug": "runner-go",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#090A0F"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location"
+        ],
+        "NSLocationWhenInUseUsageDescription": "O RUNNERGO precisa do seu GPS para rastrear sua distância, ritmo e rota durante os treinos.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O RUNNERGO precisa do seu GPS em segundo plano para continuar gravando seu treino mesmo com a tela do celular desligada."
+      }
+    },
     "android": {
       "package": "com.runnergo.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#090A0F"
+      },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
