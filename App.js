@@ -651,5 +651,5 @@ export default function App() {
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
                
-    }
+    
     
