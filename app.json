@@ -112,12 +112,6 @@ export default function App() {
     return `${paceMins}'${paceSecs < 10 ? '0' : ''}${paceSecs}"`;
   };
 
-  const getAvgSpeed = () => {
-    if (distance <= 0.001 || duration === 0) return '0.0';
-    const hours = duration / 3600;
-    return (distance / hours).toFixed(1);
-  };
-
   const formatTime = (secs) => {
     const hrs = Math.floor(secs / 3600);
     const mins = Math.floor((secs % 3600) / 60);
@@ -247,7 +241,10 @@ export default function App() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {workoutFinished ? (
             <View>
-              <Text style={styles.summaryHeader}>TREINO CONCLUÍDO! 🥇</Text>              <View style={styles.statsGrid}>
+              <Text style={styles.summaryHeader}>TREINO CONCLUÍDO! 🥇</Text>
+              <Text style={styles.summarySubHeader}>Treino salvo automaticamente no seu histórico.</Text>
+              
+              <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
                   <Text style={styles.statCardValue}>{distance.toFixed(2)}</Text>
                   <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
@@ -312,7 +309,6 @@ export default function App() {
                   <Text style={styles.buttonText}>{isPaused ? 'INICIAR TREINO' : 'PAUSAR'}</Text>
                 </TouchableOpacity>
 
-                {/* Botão de Finalizar SEMPRE visível assim que o treino começar */}
                 {duration > 0 && (
                   <TouchableOpacity style={styles.stopButton} onPress={finishWorkout}>
                     <Text style={styles.buttonText}>FINALIZAR E SALVAR</Text>
@@ -395,6 +391,7 @@ const styles = StyleSheet.create({
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 
   summaryHeader: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 8 },
+  summarySubHeader: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginBottom: 10 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 16 },
   statCard: {
     width: '48%',
