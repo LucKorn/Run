@@ -20,7 +20,7 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const mapRef = useRef(null);
 
-  // Pedir Permissão e Rastrear GPS Nativo do Android
+  // Pedir Permissão e Rastrear GPS Nativo
   useEffect(() => {
     let locationSubscription;
 
@@ -55,7 +55,6 @@ export default function App() {
 
           setLocation(newCoords);
 
-          // Centralizar mapa na localização atual
           if (mapRef.current) {
             mapRef.current.animateToRegion({
               latitude,
@@ -314,7 +313,7 @@ export default function App() {
                 </View>
               </View>
 
-              {/* Mapa de Satélite ArcGIS em Tempo Real */}
+              {/* Mapa de Satélite em Tempo Real */}
               <View style={styles.mapContainer}>
                 <MapView
                   ref={mapRef}
@@ -388,9 +387,8 @@ export default function App() {
       )}
     </SafeAreaView>
   );
-}
-
-const styles = StyleSheet.create({
+               }
+               const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
   headerContainer: {
@@ -526,10 +524,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     marginBottom: 10,
   },
-   historyDate: { color: '#6C727F', fontSize: 12, fontWeight: '600' },
+  historyDate: { color: '#6C727F', fontSize: 12, fontWeight: '600' },
   historyDistance: { color: '#00D26A', fontSize: 16, fontWeight: '900' },
   historyStatsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   historyStatItem: { alignItems: 'center' },
   historyStatValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   historyStatLabel: { color: '#6C727F', fontSize: 8, marginTop: 2 },
 });
+                 
