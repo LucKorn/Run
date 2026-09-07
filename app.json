@@ -33,18 +33,23 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE"
-      ],
-      "config": {
-        "googleMaps": {
-          "apiKey": ""
-        }
-      }
+      ]
     },
     "plugins": [
       [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "O RUNNERGO precisa do GPS em segundo plano para gravar seu treino com a tela desligada."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          }
         }
       ]
     ],
