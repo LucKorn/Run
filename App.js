@@ -250,7 +250,7 @@ export default function App() {
               );
             })
           )}
-        </ScrollView>
+        ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {workoutFinished ? (
@@ -380,8 +380,8 @@ export default function App() {
       )}
     </SafeAreaView>
   );
-}
-const styles = StyleSheet.create({
+              }
+        const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
   headerContainer: {
