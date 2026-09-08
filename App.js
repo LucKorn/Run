@@ -18,12 +18,10 @@ export default function App() {
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [selectedMonthOffset, setSelectedMonthOffset] = useState(0);
 
-  // Referências para o tempo e elevação imunes a travamentos
   const startTimeRef = useRef(null);
   const accumulatedTimeRef = useRef(0);
   const lastAltitudeRef = useRef(null);
 
-  // Rastreamento GPS Nativo
   useEffect(() => {
     let locationSubscription;
 
@@ -96,7 +94,6 @@ export default function App() {
     };
   }, [isPaused, workoutFinished]);
 
-  // Cronômetro baseado em Timestamp Real (Imune a Tela Desligada)
   useEffect(() => {
     let timer;
     if (!isPaused && !workoutFinished) {
@@ -139,7 +136,6 @@ export default function App() {
     return `${hrs > 0 ? `${hrs}:` : ''}${mins < 10 ? '0' : ''}${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
   };
 
-  // Buscar temperatura real local via Open-Meteo
   const fetchTemperature = async (lat, lng) => {
     try {
       if (!lat || !lng) return '--°C';
@@ -221,7 +217,6 @@ export default function App() {
     return history.filter((item) => item.monthYear === currentMonthLabel);
   };
 
-  // HTML com OpenStreetMap (Leaflet)
   const getMapHtml = (coords) => {
     const defaultLat = coords && coords.length > 0 ? coords[0].latitude : (location ? location.latitude : -29.6872);
     const defaultLng = coords && coords.length > 0 ? coords[0].longitude : (location ? location.longitude : -51.1306);
@@ -249,7 +244,7 @@ export default function App() {
             }).addTo(map);
 
             const latlngs = ${polylineArray};
-            if (latlngs.length > 0) {
+            if (latlngs && latlngs.length > 0) {
               const polyline = L.polyline(latlngs, { color: '#00D26A', weight: 5 }).addTo(map);
               map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
             } else {
@@ -267,7 +262,6 @@ export default function App() {
     `;
   };
 
-  // HTML com Canvas para o Gráfico de Altitude (Subidas/Descidas)
   const getElevationChartHtml = (coords) => {
     const altitudes = (coords || []).map(c => c.altitude || 0);
     const altArray = JSON.stringify(altitudes.length > 0 ? altitudes : [0, 0]);
@@ -278,9 +272,8 @@ export default function App() {
         <head>
           <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
           <style>
-            body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #13151C; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: sans-serif; }
-            canvas { width: 92%; height: 80%; }
-            .chart-title { color: '#6C727F'; font-size: 10px; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+            body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #13151C; display: flex; justify-content: center; align-items: center; }
+            canvas { width: 95%; height: 85%; }
           </style>
         </head>
         <body>
@@ -293,8 +286,8 @@ export default function App() {
             canvas.width = canvas.offsetWidth * 2;
             canvas.height = canvas.offsetHeight * 2;
 
-            const min = Math.min(...data);
-            const max = Math.max(...data);
+            const min = Math.min.apply(null, data);
+            const max = Math.max.apply(null, data);
             const range = (max - min) || 1;
 
             const padding = 20;
@@ -305,15 +298,14 @@ export default function App() {
             ctx.strokeStyle = '#00D26A';
             ctx.lineWidth = 4;
 
-            data.forEach((val, i) => {
-              const x = padding + (i / (data.length - 1 || 1)) * width;
-              const y = canvas.height - padding - ((val - min) / range) * height;
+            for (let i = 0; i < data.length; i++) {
+              const x = padding + (i / ((data.length - 1) || 1)) * width;
+              const y = canvas.height - padding - ((data[i] - min) / range) * height;
               if (i === 0) ctx.moveTo(x, y);
               else ctx.lineTo(x, y);
-            });
+            }
             ctx.stroke();
 
-            // Preenchimento com Gradiente Neon
             ctx.lineTo(padding + width, canvas.height - padding);
             ctx.lineTo(padding, canvas.height - padding);
             ctx.closePath();
@@ -518,91 +510,7 @@ export default function App() {
           )}
         </ScrollView>
       )}
-
-      {/* Modal de Detalhes do Treino do Histórico */}
-      <Modal
-        visible={selectedWorkout !== null}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setSelectedWorkout(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={{ paddingVertical: 20 }}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>DETALHES DO TREINO</Text>
-              <Text style={styles.modalDate}>
-                {selectedWorkout?.date} {selectedWorkout?.temperature ? `• 🌤️ ${selectedWorkout.temperature}` : ''}
-              </Text>
-
-              <View style={styles.modalMapContainer}>
-                {selectedWorkout && (
-                  <WebView
-                    originWhitelist={['*']}
-                    source={{ html: getMapHtml(selectedWorkout.route) }}
-                    style={styles.map}
-                    scrollEnabled={false}
-                  />
-                )}
-              </View>
-
-              <Text style={styles.sectionLabel}>📈 PERFIL DE ELEVAÇÃO</Text>
-              <View style={styles.chartContainer}>
-                {selectedWorkout && (
-                  <WebView
-                    originWhitelist={['*']}
-                    source={{ html: getElevationChartHtml(selectedWorkout.route) }}
-                    style={styles.map}
-                    scrollEnabled={false}
-                  />
-                )}
-              </View>
-
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{selectedWorkout?.distance}</Text>
-                  <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{selectedWorkout?.duration}</Text>
-                  <Text style={styles.statCardLabel}>DURAÇÃO</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{selectedWorkout?.pace}</Text>
-                  <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{selectedWorkout?.elevation} m</Text>
-                  <Text style={styles.statCardLabel}>GANHO ELEVAÇÃO</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{selectedWorkout?.calories}</Text>
-                  <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{selectedWorkout?.temperature || '--°C'}</Text>
-                  <Text style={styles.statCardLabel}>TEMPERATURA</Text>
-                </View>
-              </View>
-
-              <View style={styles.modalActionsRow}>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => deleteWorkout(selectedWorkout?.id)}
-                >
-                  <Text style={styles.deleteButtonText}>EXCLUIR TREINO</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedWorkout(null)}>
-                  <Text style={styles.closeButtonText}>FECHAR</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-}
-wconst styles = StyleSheet.create({
+      const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
   headerContainer: {
@@ -800,4 +708,4 @@ wconst styles = StyleSheet.create({
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
-        
+                                                      
