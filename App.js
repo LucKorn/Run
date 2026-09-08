@@ -229,7 +229,7 @@ export default function App() {
     const altitudes = (coords || []).map(function(c) { return c.altitude || 0; });
     const altArray = JSON.stringify(altitudes.length > 0 ? altitudes : [0, 0]);
 
-    return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><style>body,html{margin:0;padding:0;height:100%;width:100%;background:transparent;display:flex;justify-content:center;align-items:center}canvas{width:95%;height:85%}</style></head><body><canvas id="chart"></canvas><script>var data=${altArray};var canvas=document.getElementById('chart');var ctx=canvas.getContext('2d');canvas.width=canvas.offsetWidth*2;canvas.height=canvas.offsetHeight*2;var min=Math.min.apply(null,data);var max=Math.max.apply(null,data);var range=(max-min)||1;var padding=20;var width=canvas.width-(padding*2);var height=canvas.height-(padding*2);ctx.beginPath();ctx.strokeStyle='#00D26A';ctx.lineWidth=4;for(var i=0;i<data.length;i++){var x=padding+(i/((data.length-1)||1))*width;var y=canvas.height-padding-((data[i]-min)/range)*height;if(i===0){ctx.moveTo(x,y);}else{ctx.lineTo(x,y);}}ctx.stroke();ctx.lineTo(padding+width,canvas.height-padding);ctx.lineTo(padding,canvas.height-padding);ctx.closePath();var gradient=ctx.createLinearGradient(0,0,0,canvas.height);gradient.addColorStop(0,'rgba(0,210,106,0.35)');gradient.addColorStop(1,'rgba(0,210,106,0.0)');ctx.fillStyle=gradient;ctx.fill();</script></body></html>`;
+    return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><style>body,html{margin:0;padding:0;height:100%;width:100%;background:transparent;display:flex;justify-content:center;align-items:center}canvas{width:95%;height:85%}</style></head><body><canvas id="chart"></canvas><script>var data=${altArray};var canvas=document.getElementById('chart');var ctx=canvas.getContext('2d');canvas.width=canvas.offsetWidth*2;canvas.height=canvas.offsetHeight*2;var min=Math.min.apply(null,data);var max=Math.max.apply(null,data);var range=(max-min)||1;var maxIdx=0;var minIdx=0;for(var k=0;k<data.length;k++){if(data[k]===max)maxIdx=k;if(data[k]===min)minIdx=k;}var padding=30;var width=canvas.width-(padding*2);var height=canvas.height-(padding*2);ctx.beginPath();ctx.strokeStyle='#00D26A';ctx.lineWidth=4;for(var i=0;i<data.length;i++){var x=padding+(i/((data.length-1)||1))*width;var y=canvas.height-padding-((data[i]-min)/range)*height;if(i===0){ctx.moveTo(x,y);}else{ctx.lineTo(x,y);}}ctx.stroke();ctx.lineTo(padding+width,canvas.height-padding);ctx.lineTo(padding,canvas.height-padding);ctx.closePath();var gradient=ctx.createLinearGradient(0,0,0,canvas.height);gradient.addColorStop(0,'rgba(0,210,106,0.35)');gradient.addColorStop(1,'rgba(0,210,106,0.0)');ctx.fillStyle=gradient;ctx.fill();var maxX=padding+(maxIdx/((data.length-1)||1))*width;var maxY=canvas.height-padding-((max-min)/range)*height;ctx.fillStyle='#00D26A';ctx.beginPath();ctx.arc(maxX,maxY,6,0,2*Math.PI);ctx.fill();ctx.fillStyle='#FFFFFF';ctx.font='bold 22px sans-serif';ctx.textAlign='center';ctx.fillText('▲ '+max+'m',maxX,Math.max(25,maxY-12));var minX=padding+(minIdx/((data.length-1)||1))*width;var minY=canvas.height-padding-((min-min)/range)*height;ctx.fillStyle='#FF3B30';ctx.beginPath();ctx.arc(minX,minY,6,0,2*Math.PI);ctx.fill();ctx.fillStyle='#FFFFFF';ctx.font='bold 22px sans-serif';ctx.textAlign='center';ctx.fillText('▼ '+min+'m',minX,Math.min(canvas.height-8,minY+28));</script></body></html>`;
   };
 
   const filteredWorkouts = getFilteredHistory();
@@ -545,19 +545,19 @@ const styles = StyleSheet.create({
   fullScreenSummaryContainer: { flex: 1, position: 'relative' },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(9, 10, 15, 0.25)', // Película ultra leve para o mapa aparecer bem
+    backgroundColor: 'transparent', // Mantém o mapa de fundo 100% nítido
   },
   glassScrollContent: { paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 40 },
-  glassSectionLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8, textShadowColor: '#000', textShadowRadius: 3 },
+  glassSectionLabel: { color: '#13151C', fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8 },
   glassChartContainer: {
     width: '100%',
     height: 130,
     borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 0, 0, 0.2)',
     marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)', // Fundo claro e translúcido
+    backgroundColor: 'rgba(19, 21, 28, 0.85)', // Card escuro para contraste do gráfico em verde neon
   },
   map: { width: '100%', height: '100%', backgroundColor: 'transparent' },
 
@@ -590,22 +590,22 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 
-  summaryHeader: { color: '#00D26A', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 8, textShadowColor: '#000', textShadowRadius: 4 },
-  summarySubHeader: { color: '#FFFFFF', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 3 },
+  summaryHeader: { color: '#00D26A', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 8 },
+  summarySubHeader: { color: '#13151C', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '800' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
   
-  // Cards Claros e Translúcidos com Vidro Real
+  // Cards Escuros Translúcidos com Nitidez Total do Mapa
   glassStatCard: {
     width: '48%',
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: 'rgba(19, 21, 28, 0.88)',
     borderRadius: 16,
     padding: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  statCardValue: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', textShadowColor: '#000', textShadowRadius: 2 },
-  statCardLabel: { color: '#FFFFFF', fontSize: 9, fontWeight: '800', marginTop: 4, letterSpacing: 0.5, textShadowColor: '#000', textShadowRadius: 2 },
+  statCardValue: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
+  statCardLabel: { color: '#A0A5B5', fontSize: 9, fontWeight: '800', marginTop: 4, letterSpacing: 0.5 },
   
   saveButton: { backgroundColor: '#00D26A', paddingVertical: 16, borderRadius: 30, alignItems: 'center', marginTop: 10 },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
@@ -659,8 +659,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#090A0F',
     position: 'relative',
   },
-  modalTitle: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center', textShadowColor: '#000', textShadowRadius: 3 },
-  modalDate: { color: '#FFFFFF', fontSize: 12, textAlign: 'center', marginBottom: 16, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 3 },
+  modalTitle: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center' },
+  modalDate: { color: '#13151C', fontSize: 12, textAlign: 'center', marginBottom: 16, fontWeight: '800' },
   modalActionsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -676,11 +676,10 @@ const styles = StyleSheet.create({
   deleteButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
   closeButton: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: '#1E222D',
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
-                      
