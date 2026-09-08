@@ -222,14 +222,14 @@ export default function App() {
     const defaultLng = coords && coords.length > 0 ? coords[0].longitude : (location ? location.longitude : -51.1306);
     const polylineArray = JSON.stringify((coords || []).map(function(c) { return [c.latitude, c.longitude]; }));
 
-    return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body,html,#map{margin:0;padding:0;height:100%;width:100%;background:#090A0F}.leaflet-control-attribution{display:none!important}</style></head><body><div id="map"></div><script>var map=L.map('map',{zoomControl:false}).setView([${defaultLat},${defaultLng}],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);var latlngs=${polylineArray};if(latlngs&&latlngs.length>0){var polyline=L.polyline(latlngs,{color:'#00D26A',weight:5}).addTo(map);map.fitBounds(polyline.getBounds(),{padding:[20,20]});}else{L.circleMarker([${defaultLat},${defaultLng}],{color:'#FFFFFF',fillColor:'#00D26A',fillOpacity:1,radius:7,weight:2}).addTo(map);}</script></body></html>`;
+    return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body,html,#map{margin:0;padding:0;height:100%;width:100%;background:#090A0F}.leaflet-control-attribution{display:none!important}</style></head><body><div id="map"></div><script>var map=L.map('map',{zoomControl:false}).setView([${defaultLat},${defaultLng}],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);var latlngs=${polylineArray};if(latlngs&&latlngs.length>0){var polyline=L.polyline(latlngs,{color:'#00D26A',weight:6}).addTo(map);map.fitBounds(polyline.getBounds(),{padding:[40,40]});}else{L.circleMarker([${defaultLat},${defaultLng}],{color:'#FFFFFF',fillColor:'#00D26A',fillOpacity:1,radius:7,weight:2}).addTo(map);}</script></body></html>`;
   };
 
   const getElevationChartHtml = (coords) => {
     const altitudes = (coords || []).map(function(c) { return c.altitude || 0; });
     const altArray = JSON.stringify(altitudes.length > 0 ? altitudes : [0, 0]);
 
-    return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><style>body,html{margin:0;padding:0;height:100%;width:100%;background:#13151C;display:flex;justify-content:center;align-items:center}canvas{width:95%;height:85%}</style></head><body><canvas id="chart"></canvas><script>var data=${altArray};var canvas=document.getElementById('chart');var ctx=canvas.getContext('2d');canvas.width=canvas.offsetWidth*2;canvas.height=canvas.offsetHeight*2;var min=Math.min.apply(null,data);var max=Math.max.apply(null,data);var range=(max-min)||1;var padding=20;var width=canvas.width-(padding*2);var height=canvas.height-(padding*2);ctx.beginPath();ctx.strokeStyle='#00D26A';ctx.lineWidth=4;for(var i=0;i<data.length;i++){var x=padding+(i/((data.length-1)||1))*width;var y=canvas.height-padding-((data[i]-min)/range)*height;if(i===0){ctx.moveTo(x,y);}else{ctx.lineTo(x,y);}}ctx.stroke();ctx.lineTo(padding+width,canvas.height-padding);ctx.lineTo(padding,canvas.height-padding);ctx.closePath();var gradient=ctx.createLinearGradient(0,0,0,canvas.height);gradient.addColorStop(0,'rgba(0,210,106,0.35)');gradient.addColorStop(1,'rgba(0,210,106,0.0)');ctx.fillStyle=gradient;ctx.fill();</script></body></html>`;
+    return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><style>body,html{margin:0;padding:0;height:100%;width:100%;background:transparent;display:flex;justify-content:center;align-items:center}canvas{width:95%;height:85%}</style></head><body><canvas id="chart"></canvas><script>var data=${altArray};var canvas=document.getElementById('chart');var ctx=canvas.getContext('2d');canvas.width=canvas.offsetWidth*2;canvas.height=canvas.offsetHeight*2;var min=Math.min.apply(null,data);var max=Math.max.apply(null,data);var range=(max-min)||1;var padding=20;var width=canvas.width-(padding*2);var height=canvas.height-(padding*2);ctx.beginPath();ctx.strokeStyle='#00D26A';ctx.lineWidth=4;for(var i=0;i<data.length;i++){var x=padding+(i/((data.length-1)||1))*width;var y=canvas.height-padding-((data[i]-min)/range)*height;if(i===0){ctx.moveTo(x,y);}else{ctx.lineTo(x,y);}}ctx.stroke();ctx.lineTo(padding+width,canvas.height-padding);ctx.lineTo(padding,canvas.height-padding);ctx.closePath();var gradient=ctx.createLinearGradient(0,0,0,canvas.height);gradient.addColorStop(0,'rgba(0,210,106,0.35)');gradient.addColorStop(1,'rgba(0,210,106,0.0)');ctx.fillStyle=gradient;ctx.fill();</script></body></html>`;
   };
 
   const filteredWorkouts = getFilteredHistory();
@@ -314,63 +314,65 @@ export default function App() {
           )}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={{ flex: 1 }}>
           {workoutFinished ? (
-            <View>
-              <Text style={styles.summaryHeader}>TREINO CONCLUÍDO! 🥇</Text>
-              <Text style={styles.summarySubHeader}>Treino salvo automaticamente no seu histórico.</Text>
-              
-              <View style={styles.mapContainer}>
-                <WebView
-                  originWhitelist={['*']}
-                  source={{ html: getMapHtml(routeCoordinates) }}
-                  style={styles.map}
-                  scrollEnabled={false}
-                />
-              </View>
+            <View style={styles.fullScreenSummaryContainer}>
+              <WebView
+                originWhitelist={['*']}
+                source={{ html: getMapHtml(routeCoordinates) }}
+                style={StyleSheet.absoluteFillObject}
+                scrollEnabled={false}
+              />
+              <View style={styles.glassOverlay}>
+                <ScrollView contentContainerStyle={styles.glassScrollContent} showsVerticalScrollIndicator={false}>
+                  <Text style={styles.summaryHeader}>TREINO CONCLUÍDO! 🥇</Text>
+                  <Text style={styles.summarySubHeader}>Treino salvo automaticamente no seu histórico.</Text>
 
-              <Text style={styles.sectionLabel}>📈 PERFIL DE ELEVAÇÃO (SUBIDAS/DESCIDAS)</Text>
-              <View style={styles.chartContainer}>
-                <WebView
-                  originWhitelist={['*']}
-                  source={{ html: getElevationChartHtml(routeCoordinates) }}
-                  style={styles.map}
-                  scrollEnabled={false}
-                />
-              </View>
+                  <Text style={styles.glassSectionLabel}>📈 PERFIL DE ELEVAÇÃO</Text>
+                  <View style={styles.glassChartContainer}>
+                    <WebView
+                      originWhitelist={['*']}
+                      source={{ html: getElevationChartHtml(routeCoordinates) }}
+                      style={styles.map}
+                      scrollEnabled={false}
+                    />
+                  </View>
 
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{distance.toFixed(2)}</Text>
-                  <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{formatTime(duration)}</Text>
-                  <Text style={styles.statCardLabel}>DURAÇÃO</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{getPace()}</Text>
-                  <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{Math.round(elevationGain)} m</Text>
-                  <Text style={styles.statCardLabel}>GANHO ELEVAÇÃO</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{(distance * 65).toFixed(0)}</Text>
-                  <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statCardValue}>{history[0]?.temperature || '--°C'}</Text>
-                  <Text style={styles.statCardLabel}>TEMPERATURA</Text>
-                </View>
+                  <View style={styles.statsGrid}>
+                    <View style={styles.glassStatCard}>
+                      <Text style={styles.statCardValue}>{distance.toFixed(2)}</Text>
+                      <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
+                    </View>
+                    <View style={styles.glassStatCard}>
+                      <Text style={styles.statCardValue}>{formatTime(duration)}</Text>
+                      <Text style={styles.statCardLabel}>DURAÇÃO</Text>
+                    </View>
+                    <View style={styles.glassStatCard}>
+                      <Text style={styles.statCardValue}>{getPace()}</Text>
+                      <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
+                    </View>
+                    <View style={styles.glassStatCard}>
+                      <Text style={styles.statCardValue}>{Math.round(elevationGain)} m</Text>
+                      <Text style={styles.statCardLabel}>GANHO ELEVAÇÃO</Text>
+                    </View>
+                    <View style={styles.glassStatCard}>
+                      <Text style={styles.statCardValue}>{(distance * 65).toFixed(0)}</Text>
+                      <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
+                    </View>
+                    <View style={styles.glassStatCard}>
+                      <Text style={styles.statCardValue}>{history[0]?.temperature || '--°C'}</Text>
+                      <Text style={styles.statCardLabel}>TEMPERATURA</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity style={styles.saveButton} onPress={resetWorkout}>
+                    <Text style={styles.saveButtonText}>INICIAR NOVO TREINO</Text>
+                  </TouchableOpacity>
+                </ScrollView>
               </View>
-              <TouchableOpacity style={styles.saveButton} onPress={resetWorkout}>
-                <Text style={styles.saveButtonText}>INICIAR NOVO TREINO</Text>
-              </TouchableOpacity>
             </View>
           ) : (
-            <View>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
               <View style={styles.badgeContainer}>
                 <View style={[styles.statusBadge, !isPaused && styles.statusBadgeActive]}>
                   <Text style={styles.statusBadgeText}>{statusMsg}</Text>
@@ -418,9 +420,9 @@ export default function App() {
                   </TouchableOpacity>
                 )}
               </View>
-            </View>
+            </ScrollView>
           )}
-        </ScrollView>
+        </View>
       )}
 
       <Modal
@@ -430,26 +432,23 @@ export default function App() {
         onRequestClose={() => setSelectedWorkout(null)}
       >
         <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={{ paddingVertical: 20 }}>
-            <View style={styles.modalContent}>
+          {selectedWorkout && (
+            <WebView
+              originWhitelist={['*']}
+              source={{ html: getMapHtml(selectedWorkout.route) }}
+              style={StyleSheet.absoluteFillObject}
+              scrollEnabled={false}
+            />
+          )}
+          <View style={styles.glassOverlay}>
+            <ScrollView contentContainerStyle={styles.glassScrollContent} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>DETALHES DO TREINO</Text>
               <Text style={styles.modalDate}>
                 {selectedWorkout?.date} {selectedWorkout?.temperature ? `• 🌤️ ${selectedWorkout.temperature}` : ''}
               </Text>
 
-              <View style={styles.modalMapContainer}>
-                {selectedWorkout && (
-                  <WebView
-                    originWhitelist={['*']}
-                    source={{ html: getMapHtml(selectedWorkout.route) }}
-                    style={styles.map}
-                    scrollEnabled={false}
-                  />
-                )}
-              </View>
-
-              <Text style={styles.sectionLabel}>📈 PERFIL DE ELEVAÇÃO</Text>
-              <View style={styles.chartContainer}>
+              <Text style={styles.glassSectionLabel}>📈 PERFIL DE ELEVAÇÃO</Text>
+              <View style={styles.glassChartContainer}>
                 {selectedWorkout && (
                   <WebView
                     originWhitelist={['*']}
@@ -461,27 +460,27 @@ export default function App() {
               </View>
 
               <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
+                <View style={styles.glassStatCard}>
                   <Text style={styles.statCardValue}>{selectedWorkout?.distance}</Text>
                   <Text style={styles.statCardLabel}>DISTÂNCIA (KM)</Text>
                 </View>
-                <View style={styles.statCard}>
+                <View style={styles.glassStatCard}>
                   <Text style={styles.statCardValue}>{selectedWorkout?.duration}</Text>
                   <Text style={styles.statCardLabel}>DURAÇÃO</Text>
                 </View>
-                <View style={styles.statCard}>
+                <View style={styles.glassStatCard}>
                   <Text style={styles.statCardValue}>{selectedWorkout?.pace}</Text>
                   <Text style={styles.statCardLabel}>PACE (MIN/KM)</Text>
                 </View>
-                <View style={styles.statCard}>
+                <View style={styles.glassStatCard}>
                   <Text style={styles.statCardValue}>{selectedWorkout?.elevation} m</Text>
                   <Text style={styles.statCardLabel}>GANHO ELEVAÇÃO</Text>
                 </View>
-                <View style={styles.statCard}>
+                <View style={styles.glassStatCard}>
                   <Text style={styles.statCardValue}>{selectedWorkout?.calories}</Text>
                   <Text style={styles.statCardLabel}>CALORIAS (KCAL)</Text>
                 </View>
-                <View style={styles.statCard}>
+                <View style={styles.glassStatCard}>
                   <Text style={styles.statCardValue}>{selectedWorkout?.temperature || '--°C'}</Text>
                   <Text style={styles.statCardLabel}>TEMPERATURA</Text>
                 </View>
@@ -498,8 +497,8 @@ export default function App() {
                   <Text style={styles.closeButtonText}>FECHAR</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -543,28 +542,24 @@ const styles = StyleSheet.create({
   statusBadgeActive: { backgroundColor: '#00D26A20', borderColor: '#00D26A' },
   statusBadgeText: { color: '#00D26A', fontSize: 10, fontWeight: '800' },
 
-  sectionLabel: { color: '#6C727F', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 6 },
-  mapContainer: {
-    width: '100%',
-    height: 180,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#1E222D',
-    marginBottom: 10,
-    backgroundColor: '#090A0F',
+  fullScreenSummaryContainer: { flex: 1, position: 'relative' },
+  glassOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(9, 10, 15, 0.65)',
   },
-  chartContainer: {
+  glassScrollContent: { paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 40 },
+  glassSectionLabel: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8 },
+  glassChartContainer: {
     width: '100%',
     height: 130,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#1E222D',
-    marginBottom: 10,
-    backgroundColor: '#13151C',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    marginBottom: 12,
+    backgroundColor: 'rgba(19, 21, 28, 0.75)',
   },
-  map: { width: '100%', height: '100%', backgroundColor: '#090A0F' },
+  map: { width: '100%', height: '100%', backgroundColor: 'transparent' },
 
   mainDisplay: { alignItems: 'center', marginVertical: 20 },
   mainValue: { color: '#FFFFFF', fontSize: 72, fontWeight: '900', letterSpacing: -2 },
@@ -595,21 +590,21 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 
-  summaryHeader: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 8 },
-  summarySubHeader: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginBottom: 10 },
+  summaryHeader: { color: '#00D26A', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 8 },
+  summarySubHeader: { color: '#E0E0E0', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '600' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
-  statCard: {
+  glassStatCard: {
     width: '48%',
-    backgroundColor: '#13151C',
+    backgroundColor: 'rgba(19, 21, 28, 0.82)',
     borderRadius: 16,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1E222D',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   statCardValue: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
-  statCardLabel: { color: '#6C727F', fontSize: 9, fontWeight: '700', marginTop: 4 },
-  saveButton: { backgroundColor: '#007AFF', paddingVertical: 16, borderRadius: 30, alignItems: 'center' },
+  statCardLabel: { color: '#A0A5B5', fontSize: 9, fontWeight: '700', marginTop: 4 },
+  saveButton: { backgroundColor: '#00D26A', paddingVertical: 16, borderRadius: 30, alignItems: 'center', marginTop: 10 },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
 
   monthHeader: {
@@ -658,29 +653,11 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  modalContent: {
-    backgroundColor: '#13151C',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#1E222D',
-  },
-  modalTitle: { color: '#00D26A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
-  modalDate: { color: '#6C727F', fontSize: 12, textAlign: 'center', marginBottom: 16 },
-  modalMapContainer: {
-    width: '100%',
-    height: 180,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#1E222D',
-    marginBottom: 10,
     backgroundColor: '#090A0F',
+    position: 'relative',
   },
+  modalTitle: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center' },
+  modalDate: { color: '#E0E0E0', fontSize: 12, textAlign: 'center', marginBottom: 16, fontWeight: '600' },
   modalActionsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -696,11 +673,11 @@ const styles = StyleSheet.create({
   deleteButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
   closeButton: {
     flex: 1,
-    backgroundColor: '#1E222D',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
-        
+                    
