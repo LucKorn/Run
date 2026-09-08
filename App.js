@@ -545,19 +545,19 @@ const styles = StyleSheet.create({
   fullScreenSummaryContainer: { flex: 1, position: 'relative' },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(9, 10, 15, 0.65)',
+    backgroundColor: 'rgba(9, 10, 15, 0.25)', // Película ultra leve para o mapa aparecer bem
   },
   glassScrollContent: { paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 40 },
-  glassSectionLabel: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8 },
+  glassSectionLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8, textShadowColor: '#000', textShadowRadius: 3 },
   glassChartContainer: {
     width: '100%',
     height: 130,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.45)',
     marginBottom: 12,
-    backgroundColor: 'rgba(19, 21, 28, 0.75)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)', // Fundo claro e translúcido
   },
   map: { width: '100%', height: '100%', backgroundColor: 'transparent' },
 
@@ -590,20 +590,23 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 
-  summaryHeader: { color: '#00D26A', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 8 },
-  summarySubHeader: { color: '#E0E0E0', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '600' },
+  summaryHeader: { color: '#00D26A', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 8, textShadowColor: '#000', textShadowRadius: 4 },
+  summarySubHeader: { color: '#FFFFFF', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 3 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
+  
+  // Cards Claros e Translúcidos com Vidro Real
   glassStatCard: {
     width: '48%',
-    backgroundColor: 'rgba(19, 21, 28, 0.82)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
     borderRadius: 16,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.45)',
   },
-  statCardValue: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
-  statCardLabel: { color: '#A0A5B5', fontSize: 9, fontWeight: '700', marginTop: 4 },
+  statCardValue: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', textShadowColor: '#000', textShadowRadius: 2 },
+  statCardLabel: { color: '#FFFFFF', fontSize: 9, fontWeight: '800', marginTop: 4, letterSpacing: 0.5, textShadowColor: '#000', textShadowRadius: 2 },
+  
   saveButton: { backgroundColor: '#00D26A', paddingVertical: 16, borderRadius: 30, alignItems: 'center', marginTop: 10 },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
 
@@ -656,8 +659,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#090A0F',
     position: 'relative',
   },
-  modalTitle: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center' },
-  modalDate: { color: '#E0E0E0', fontSize: 12, textAlign: 'center', marginBottom: 16, fontWeight: '600' },
+  modalTitle: { color: '#00D26A', fontSize: 20, fontWeight: '900', textAlign: 'center', textShadowColor: '#000', textShadowRadius: 3 },
+  modalDate: { color: '#FFFFFF', fontSize: 12, textAlign: 'center', marginBottom: 16, fontWeight: '700', textShadowColor: '#000', textShadowRadius: 3 },
   modalActionsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -673,11 +676,11 @@ const styles = StyleSheet.create({
   deleteButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
   closeButton: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: 'center',
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
-                    
+                      
