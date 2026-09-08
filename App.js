@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   fullScreenSummaryContainer: { flex: 1, position: 'relative' },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent', // Mantém o mapa de fundo 100% nítido
+    backgroundColor: 'transparent',
   },
   glassScrollContent: { paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 40 },
   glassSectionLabel: { color: '#13151C', fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8 },
@@ -555,9 +555,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(0, 0, 0, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     marginBottom: 12,
-    backgroundColor: 'rgba(19, 21, 28, 0.85)', // Card escuro para contraste do gráfico em verde neon
+    backgroundColor: 'rgba(19, 21, 28, 0.88)',
   },
   map: { width: '100%', height: '100%', backgroundColor: 'transparent' },
 
@@ -594,18 +594,18 @@ const styles = StyleSheet.create({
   summarySubHeader: { color: '#13151C', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '800' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
   
-  // Cards Escuros Translúcidos com Nitidez Total do Mapa
+  // Cards Claros e Translúcidos
   glassStatCard: {
     width: '48%',
-    backgroundColor: 'rgba(19, 21, 28, 0.88)',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
     borderRadius: 16,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
   },
-  statCardValue: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
-  statCardLabel: { color: '#A0A5B5', fontSize: 9, fontWeight: '800', marginTop: 4, letterSpacing: 0.5 },
+  statCardValue: { color: '#090A0F', fontSize: 20, fontWeight: '900' },
+  statCardLabel: { color: '#4A5060', fontSize: 9, fontWeight: '800', marginTop: 4, letterSpacing: 0.5 },
   
   saveButton: { backgroundColor: '#00D26A', paddingVertical: 16, borderRadius: 30, alignItems: 'center', marginTop: 10 },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
