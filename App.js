@@ -32,6 +32,11 @@ export default function App() {
         return;
       }
 
+      // Solcita permissão de background caso disponível para evitar parada com tela desligada
+      try {
+        await Location.requestBackgroundPermissionsAsync();
+      } catch (e) {}
+
       setStatusMsg('EM ANDAMENTO');
 
       locationSubscription = await Location.watchPositionAsync(
@@ -41,7 +46,13 @@ export default function App() {
           distanceInterval: 3,
         },
         (newLocation) => {
-          const { latitude, longitude, altitude } = newLocation.coords;
+          const { latitude, longitude, altitude, accuracy } = newLocation.coords;
+
+          // 1. FILTRO DE PRECISÃO: Descarta leitura se margem de erro for maior que 25 metros
+          if (accuracy && accuracy > 25) {
+            return;
+          }
+
           const currentAlt = altitude !== null && altitude !== undefined ? Math.round(altitude) : 0;
           const newCoords = { latitude, longitude, altitude: currentAlt };
 
@@ -66,6 +77,12 @@ export default function App() {
                 latitude,
                 longitude
               );
+
+              // 2. FILTRO DE SALTO DE VELOCIDADE: Ignora se a distância em 2 segundos for > 20m (> 36 km/h)
+              if (addedDist > 0.020) {
+                return prev;
+              }
+
               setDistance((d) => d + addedDist);
             }
             return [...prev, newCoords];
@@ -685,3 +702,4 @@ const styles = StyleSheet.create({
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
+                      
