@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('workout');
@@ -22,6 +23,30 @@ export default function App() {
   const accumulatedTimeRef = useRef(0);
   const lastAltitudeRef = useRef(null);
 
+  // Carrega o histórico salvo no armazenamento interno do celular ao abrir o app
+  useEffect(() => {
+    loadSavedHistory();
+  }, []);
+
+  const loadSavedHistory = async () => {
+    try {
+      const savedData = await AsyncStorage.getItem('@runnergo_history');
+      if (savedData !== null) {
+        setHistory(JSON.parse(savedData));
+      }
+    } catch (error) {
+      console.log('Erro ao carregar histórico:', error);
+    }
+  };
+
+  const saveHistoryToStorage = async (newHistory) => {
+    try {
+      await AsyncStorage.setItem('@runnergo_history', JSON.stringify(newHistory));
+    } catch (error) {
+      console.log('Erro ao salvar histórico:', error);
+    }
+  };
+
   useEffect(() => {
     let locationSubscription;
 
@@ -32,7 +57,6 @@ export default function App() {
         return;
       }
 
-      // Solcita permissão de background caso disponível para evitar parada com tela desligada
       try {
         await Location.requestBackgroundPermissionsAsync();
       } catch (e) {}
@@ -48,7 +72,7 @@ export default function App() {
         (newLocation) => {
           const { latitude, longitude, altitude, accuracy } = newLocation.coords;
 
-          // 1. FILTRO DE PRECISÃO: Descarta leitura se margem de erro for maior que 25 metros
+          // 1. FILTRO DE PRECISÃO: Descarta pontos com margem de erro > 25 metros
           if (accuracy && accuracy > 25) {
             return;
           }
@@ -201,10 +225,11 @@ export default function App() {
       route: [...routeCoordinates]
     };
 
-    setHistory((prev) => [newWorkoutItem, ...prev]);
+    const updatedHistory = [newWorkoutItem, ...history];
+    setHistory(updatedHistory);
+    saveHistoryToStorage(updatedHistory);
   };
-
-  const resetWorkout = () => {
+      const resetWorkout = () => {
     setDistance(0);
     setDuration(0);
     setElevationGain(0);
@@ -219,7 +244,9 @@ export default function App() {
   };
 
   const deleteWorkout = (id) => {
-    setHistory((prev) => prev.filter((item) => item.id !== id));
+    const updatedHistory = history.filter((item) => item.id !== id);
+    setHistory(updatedHistory);
+    saveHistoryToStorage(updatedHistory);
     setSelectedWorkout(null);
   };
 
@@ -411,8 +438,7 @@ export default function App() {
                   <Text style={styles.cardLabel}>PACE (MIN/KM)</Text>
                 </View>
               </View>
-
-              <View style={styles.cardsRow}>
+                  <View style={styles.cardsRow}>
                 <View style={styles.card}>
                   <Text style={styles.cardValue}>{Math.round(elevationGain)} m</Text>
                   <Text style={styles.cardLabel}>GANHO ELEVAÇÃO</Text>
@@ -521,6 +547,7 @@ export default function App() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 40 },
@@ -567,7 +594,6 @@ const styles = StyleSheet.create({
   glassScrollContent: { paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 40 },
   glassSectionLabel: { color: '#090A0F', fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8 },
   
-  // Card do Gráfico Claro
   glassChartContainer: {
     width: '100%',
     height: 130,
@@ -613,7 +639,6 @@ const styles = StyleSheet.create({
   summarySubHeader: { color: '#090A0F', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '800' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
   
-  // Cards de Métricas Claros
   glassStatCard: {
     width: '48%',
     backgroundColor: 'rgba(255, 255, 255, 0.65)',
@@ -702,4 +727,4 @@ const styles = StyleSheet.create({
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
-                      
+            
