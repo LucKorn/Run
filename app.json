@@ -3,6 +3,7 @@
     "name": "RUNNERGO",
     "slug": "runnergo",
     "version": "1.0.0",
+    "owner": "lukorn",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -30,7 +31,7 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE"
       ],
-      "package": "com.anonymous.runnergo"
+      "package": "com.lukorn.runnergo"
     },
     "plugins": [
       [
@@ -39,6 +40,9 @@
           "locationAlwaysAndWhenInUsePermission": "Permitir que o RUNNERGO acesse sua localização para rastrear suas corridas mesmo em segundo plano."
         }
       ]
-    ]
+    ],
+    "cli": {
+      "appVersionSource": "remote"
+    }
   }
 }
