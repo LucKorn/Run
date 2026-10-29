@@ -41,8 +41,10 @@
         }
       ]
     ],
-    "cli": {
-      "appVersionSource": "remote"
+    "extra": {
+      "eas": {
+        "projectId": "runnergo-lukorn"
+      }
     }
   }
 }
