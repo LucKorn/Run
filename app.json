@@ -7,25 +7,21 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
       "backgroundColor": "#090A0F"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
-        ],
-        "NSLocationWhenInUseUsageDescription": "O RUNNERGO precisa do seu GPS para rastrear sua distância, ritmo e rota durante os treinos.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "O RUNNERGO precisa do seu GPS em segundo plano para continuar gravando seu treino mesmo com a tela do celular desligada."
+        ]
       }
     },
     "android": {
-      "package": "com.runnergo.app",
-      "versionCode": 1,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#090A0F"
       },
       "permissions": [
@@ -33,20 +29,16 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE"
-      ]
+      ],
+      "package": "com.anonymous.runnergo"
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "O RUNNERGO precisa do GPS em segundo plano para gravar seu treino com a tela desligada."
+          "locationAlwaysAndWhenInUsePermission": "Permitir que o RUNNERGO acesse sua localização para rastrear suas corridas mesmo em segundo plano."
         }
       ]
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "4d763c5a-db3d-48f9-b105-da7cbd0c3ad1"
-      }
-    }
+    ]
   }
 }
