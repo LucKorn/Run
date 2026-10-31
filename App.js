@@ -2,7 +2,63 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const LOCATION_TASK_NAME = 'background-location-task';
+
+// Define a tarefa que roda mesmo com a tela desligada
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+  if (error) {
+    return;
+  }
+  if (data) {
+    const { locations } = data;
+    if (locations && locations.length > 0) {
+      const newLoc = locations[locations.length - 1];
+      const { latitude, longitude, altitude, accuracy } = newLoc.coords;
+
+      // Filtro de precisão do GPS (descarte > 25m)
+      if (accuracy && accuracy > 25) return;
+
+      try {
+        const savedCoords = await AsyncStorage.getItem('@runnergo_current_route');
+        let route = savedCoords ? JSON.parse(savedCoords) : [];
+
+        const currentAlt = altitude !== null && altitude !== undefined ? Math.round(altitude) : 0;
+        const newPoint = { latitude, longitude, altitude: currentAlt };
+
+        if (route.length > 0) {
+          const last = route[route.length - 1];
+          
+          // Cálculo de distância (Haversine)
+          const R = 6371;
+          const dLat = ((latitude - last.latitude) * Math.PI) / 180;
+          const dLon = ((longitude - last.longitude) * Math.PI) / 180;
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos((last.latitude * Math.PI) / 180) *
+              Math.cos((latitude * Math.PI) / 180) *
+              Math.sin(dLon / 2) *
+              Math.sin(dLon / 2);
+          const addedDist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+          // Ignora saltos irrealistas (> 20m em 2s ou > 36 km/h)
+          if (addedDist > 0.020) return;
+
+          const savedDist = await AsyncStorage.getItem('@runnergo_current_distance');
+          const currentTotalDist = savedDist ? parseFloat(savedDist) : 0;
+          await AsyncStorage.setItem('@runnergo_current_distance', (currentTotalDist + addedDist).toString());
+        }
+
+        route.push(newPoint);
+        await AsyncStorage.setItem('@runnergo_current_route', JSON.stringify(route));
+      } catch (e) {
+        console.log('Erro no background task:', e);
+      }
+    }
+  }
+});
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('workout');
@@ -21,9 +77,7 @@ export default function App() {
 
   const startTimeRef = useRef(null);
   const accumulatedTimeRef = useRef(0);
-  const lastAltitudeRef = useRef(null);
 
-  // Carrega o histórico salvo no armazenamento interno do celular ao abrir o app
   useEffect(() => {
     loadSavedHistory();
   }, []);
@@ -47,92 +101,72 @@ export default function App() {
     }
   };
 
+  // Sincroniza os dados salvos em background com o estado visível na tela do App
   useEffect(() => {
-    let locationSubscription;
+    let interval;
+    if (!isPaused && !workoutFinished) {
+      interval = setInterval(async () => {
+        try {
+          const savedRoute = await AsyncStorage.getItem('@runnergo_current_route');
+          const savedDist = await AsyncStorage.getItem('@runnergo_current_distance');
 
-    const startLocationUpdates = async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setStatusMsg('SEM PERMISSÃO GPS');
-        return;
-      }
-
-      try {
-        await Location.requestBackgroundPermissionsAsync();
-      } catch (e) {}
-
-      setStatusMsg('EM ANDAMENTO');
-
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 2000,
-          distanceInterval: 3,
-        },
-        (newLocation) => {
-          const { latitude, longitude, altitude, accuracy } = newLocation.coords;
-
-          // 1. FILTRO DE PRECISÃO: Descarta pontos com margem de erro > 25 metros
-          if (accuracy && accuracy > 25) {
-            return;
+          if (savedRoute) {
+            const parsedRoute = JSON.parse(savedRoute);
+            setRouteCoordinates(parsedRoute);
+            if (parsedRoute.length > 0) {
+              setLocation(parsedRoute[parsedRoute.length - 1]);
+            }
           }
 
-          const currentAlt = altitude !== null && altitude !== undefined ? Math.round(altitude) : 0;
-          const newCoords = { latitude, longitude, altitude: currentAlt };
-
-          if (altitude !== null && altitude !== undefined) {
-            if (lastAltitudeRef.current !== null && altitude > lastAltitudeRef.current) {
-              const altDiff = altitude - lastAltitudeRef.current;
-              if (altDiff > 0.5) {
-                setElevationGain((e) => e + altDiff);
-              }
-            }
-            lastAltitudeRef.current = altitude;
+          if (savedDist) {
+            setDistance(parseFloat(savedDist));
           }
+        } catch (e) {}
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isPaused, workoutFinished]);
 
-          setLocation(newCoords);
+  // Controle de Início e Pausa do Rastreamento em Segundo Plano
+  useEffect(() => {
+    const toggleBackgroundLocation = async () => {
+      if (!isPaused && !workoutFinished) {
+        let { status: foreStatus } = await Location.requestForegroundPermissionsAsync();
+        let { status: backStatus } = await Location.requestBackgroundPermissionsAsync();
 
-          setRouteCoordinates((prev) => {
-            if (prev.length > 0) {
-              const last = prev[prev.length - 1];
-              const addedDist = calculateDistance(
-                last.latitude,
-                last.longitude,
-                latitude,
-                longitude
-              );
+        if (foreStatus !== 'granted' || backStatus !== 'granted') {
+          setStatusMsg('PERMISSÃO NECESSÁRIA');
+          return;
+        }
 
-              // 2. FILTRO DE SALTO DE VELOCIDADE: Ignora se a distância em 2 segundos for > 20m (> 36 km/h)
-              if (addedDist > 0.020) {
-                return prev;
-              }
+        setStatusMsg('EM ANDAMENTO');
 
-              setDistance((d) => d + addedDist);
-            }
-            return [...prev, newCoords];
+        const isRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+        if (!isRunning) {
+          await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 2000,
+            distanceInterval: 3,
+            showsBackgroundLocationIndicator: true,
+            foregroundService: {
+              notificationTitle: 'RUNNERGO está ativo',
+              notificationBody: 'Rastreando seu treino em segundo plano...',
+              notificationColor: '#00D26A',
+            },
           });
         }
-      );
-    };
-
-    if (!isPaused && !workoutFinished) {
-      if (!startTimeRef.current) {
-        startTimeRef.current = Date.now();
-      }
-      startLocationUpdates();
-    } else if (isPaused && !workoutFinished && duration > 0) {
-      setStatusMsg('PAUSADO');
-      if (startTimeRef.current) {
-        accumulatedTimeRef.current += Math.floor((Date.now() - startTimeRef.current) / 1000);
-        startTimeRef.current = null;
-      }
-    }
-
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
+      } else {
+        const isRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+        if (isRunning) {
+          await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+        }
+        if (isPaused && duration > 0) {
+          setStatusMsg('PAUSADO');
+        }
       }
     };
+
+    toggleBackgroundLocation();
   }, [isPaused, workoutFinished]);
 
   useEffect(() => {
@@ -147,19 +181,6 @@ export default function App() {
     }
     return () => clearInterval(timer);
   }, [isPaused, workoutFinished]);
-
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
 
   const getPace = () => {
     if (distance <= 0.001 || duration === 0) return "0'00\"";
@@ -197,6 +218,11 @@ export default function App() {
     setIsPaused(true);
     setWorkoutFinished(true);
 
+    const isRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+    if (isRunning) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+    }
+
     let tempString = '--°C';
     if (location) {
       tempString = await fetchTemperature(location.latitude, location.longitude);
@@ -222,18 +248,21 @@ export default function App() {
       elevation: Math.round(elevationGain),
       calories: (distance * 65).toFixed(0),
       temperature: tempString,
-      route: [...routeCoordinates]
+      route: [...routeCoordinates],
     };
 
     const updatedHistory = [newWorkoutItem, ...history];
     setHistory(updatedHistory);
     saveHistoryToStorage(updatedHistory);
+
+    await AsyncStorage.removeItem('@runnergo_current_route');
+    await AsyncStorage.removeItem('@runnergo_current_distance');
   };
-      const resetWorkout = () => {
+
+  const resetWorkout = async () => {
     setDistance(0);
     setDuration(0);
     setElevationGain(0);
-    lastAltitudeRef.current = null;
     setRouteCoordinates([]);
     setLocation(null);
     setWorkoutFinished(false);
@@ -241,6 +270,8 @@ export default function App() {
     setStatusMsg('PRONTO');
     startTimeRef.current = null;
     accumulatedTimeRef.current = 0;
+    await AsyncStorage.removeItem('@runnergo_current_route');
+    await AsyncStorage.removeItem('@runnergo_current_distance');
   };
 
   const deleteWorkout = (id) => {
@@ -262,15 +293,21 @@ export default function App() {
   };
 
   const getMapHtml = (coords) => {
-    const defaultLat = coords && coords.length > 0 ? coords[0].latitude : (location ? location.latitude : -29.6872);
-    const defaultLng = coords && coords.length > 0 ? coords[0].longitude : (location ? location.longitude : -51.1306);
-    const polylineArray = JSON.stringify((coords || []).map(function(c) { return [c.latitude, c.longitude]; }));
+    const defaultLat = coords && coords.length > 0 ? coords[0].latitude : location ? location.latitude : -29.6872;
+    const defaultLng = coords && coords.length > 0 ? coords[0].longitude : location ? location.longitude : -51.1306;
+    const polylineArray = JSON.stringify(
+      (coords || []).map(function (c) {
+        return [c.latitude, c.longitude];
+      })
+    );
 
     return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>body,html,#map{margin:0;padding:0;height:100%;width:100%;background:#090A0F}.leaflet-control-attribution{display:none!important}</style></head><body><div id="map"></div><script>var map=L.map('map',{zoomControl:false}).setView([${defaultLat},${defaultLng}],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);var latlngs=${polylineArray};if(latlngs&&latlngs.length>0){var polyline=L.polyline(latlngs,{color:'#00D26A',weight:6}).addTo(map);map.fitBounds(polyline.getBounds(),{padding:[40,40]});}else{L.circleMarker([${defaultLat},${defaultLng}],{color:'#FFFFFF',fillColor:'#00D26A',fillOpacity:1,radius:7,weight:2}).addTo(map);}</script></body></html>`;
   };
 
   const getElevationChartHtml = (coords) => {
-    const altitudes = (coords || []).map(function(c) { return c.altitude || 0; });
+    const altitudes = (coords || []).map(function (c) {
+      return c.altitude || 0;
+    });
     const altArray = JSON.stringify(altitudes.length > 0 ? altitudes : [0, 0]);
 
     return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/><style>body,html{margin:0;padding:0;height:100%;width:100%;background:transparent;display:flex;justify-content:center;align-items:center}canvas{width:95%;height:85%}</style></head><body><canvas id="chart"></canvas><script>var data=${altArray};var canvas=document.getElementById('chart');var ctx=canvas.getContext('2d');canvas.width=canvas.offsetWidth*2;canvas.height=canvas.offsetHeight*2;var min=Math.min.apply(null,data);var max=Math.max.apply(null,data);var range=(max-min)||1;var maxIdx=0;var minIdx=0;for(var k=0;k<data.length;k++){if(data[k]===max)maxIdx=k;if(data[k]===min)minIdx=k;}var padding=30;var width=canvas.width-(padding*2);var height=canvas.height-(padding*2);ctx.beginPath();ctx.strokeStyle='#00A852';ctx.lineWidth=5;for(var i=0;i<data.length;i++){var x=padding+(i/((data.length-1)||1))*width;var y=canvas.height-padding-((data[i]-min)/range)*height;if(i===0){ctx.moveTo(x,y);}else{ctx.lineTo(x,y);}}ctx.stroke();ctx.lineTo(padding+width,canvas.height-padding);ctx.lineTo(padding,canvas.height-padding);ctx.closePath();var gradient=ctx.createLinearGradient(0,0,0,canvas.height);gradient.addColorStop(0,'rgba(0,168,82,0.3)');gradient.addColorStop(1,'rgba(0,168,82,0.0)');ctx.fillStyle=gradient;ctx.fill();var maxX=padding+(maxIdx/((data.length-1)||1))*width;var maxY=canvas.height-padding-((max-min)/range)*height;ctx.fillStyle='#00A852';ctx.beginPath();ctx.arc(maxX,maxY,7,0,2*Math.PI);ctx.fill();ctx.fillStyle='#090A0F';ctx.font='bold 22px sans-serif';ctx.textAlign='center';ctx.fillText('▲ '+max+'m',maxX,Math.max(25,maxY-12));var minX=padding+(minIdx/((data.length-1)||1))*width;var minY=canvas.height-padding-((min-min)/range)*height;ctx.fillStyle='#D70015';ctx.beginPath();ctx.arc(minX,minY,7,0,2*Math.PI);ctx.fill();ctx.fillStyle='#090A0F';ctx.font='bold 22px sans-serif';ctx.textAlign='center';ctx.fillText('▼ '+min+'m',minX,Math.min(canvas.height-8,minY+28));</script></body></html>`;
@@ -332,7 +369,9 @@ export default function App() {
                 activeOpacity={0.7}
               >
                 <View style={styles.historyHeader}>
-                  <Text style={styles.historyDate}>🗓️ {item.date} {item.temperature ? `• 🌤️ ${item.temperature}` : ''}</Text>
+                  <Text style={styles.historyDate}>
+                    🗓️ {item.date} {item.temperature ? `• 🌤️ ${item.temperature}` : ''}
+                  </Text>
                   <Text style={styles.historyDistance}>{item.distance} KM ➔</Text>
                 </View>
                 <View style={styles.historyStatsRow}>
@@ -438,7 +477,8 @@ export default function App() {
                   <Text style={styles.cardLabel}>PACE (MIN/KM)</Text>
                 </View>
               </View>
-                  <View style={styles.cardsRow}>
+
+              <View style={styles.cardsRow}>
                 <View style={styles.card}>
                   <Text style={styles.cardValue}>{Math.round(elevationGain)} m</Text>
                   <Text style={styles.cardLabel}>GANHO ELEVAÇÃO</Text>
@@ -452,7 +492,15 @@ export default function App() {
               <View style={styles.actionContainer}>
                 <TouchableOpacity
                   style={[styles.primaryButton, isPaused ? styles.startButton : styles.pauseButton]}
-                  onPress={() => setIsPaused(!isPaused)}
+                  onPress={() => {
+                    if (isPaused && !startTimeRef.current) {
+                      startTimeRef.current = Date.now();
+                    } else if (!isPaused) {
+                      accumulatedTimeRef.current += Math.floor((Date.now() - startTimeRef.current) / 1000);
+                      startTimeRef.current = null;
+                    }
+                    setIsPaused(!isPaused);
+                  }}
                 >
                   <Text style={styles.buttonText}>{isPaused ? 'INICIAR TREINO' : 'PAUSAR'}</Text>
                 </TouchableOpacity>
@@ -593,7 +641,7 @@ const styles = StyleSheet.create({
   },
   glassScrollContent: { paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 40 },
   glassSectionLabel: { color: '#090A0F', fontSize: 11, fontWeight: '900', letterSpacing: 1, marginTop: 12, marginBottom: 8 },
-  
+
   glassChartContainer: {
     width: '100%',
     height: 130,
@@ -638,7 +686,7 @@ const styles = StyleSheet.create({
   summaryHeader: { color: '#00D26A', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 8 },
   summarySubHeader: { color: '#090A0F', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '800' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
-  
+
   glassStatCard: {
     width: '48%',
     backgroundColor: 'rgba(255, 255, 255, 0.65)',
@@ -650,7 +698,7 @@ const styles = StyleSheet.create({
   },
   statCardValue: { color: '#090A0F', fontSize: 20, fontWeight: '900' },
   statCardLabel: { color: '#4A5060', fontSize: 9, fontWeight: '800', marginTop: 4, letterSpacing: 0.5 },
-  
+
   saveButton: { backgroundColor: '#00D26A', paddingVertical: 16, borderRadius: 30, alignItems: 'center', marginTop: 10 },
   saveButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
 
@@ -727,4 +775,3 @@ const styles = StyleSheet.create({
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
-            
