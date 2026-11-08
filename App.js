@@ -7,7 +7,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
-// Define a tarefa que roda mesmo com a tela desligada
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     return;
@@ -18,8 +17,8 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       const newLoc = locations[locations.length - 1];
       const { latitude, longitude, altitude, accuracy } = newLoc.coords;
 
-      // Filtro de precisão do GPS (descarte > 25m)
-      if (accuracy && accuracy > 25) return;
+      // Filtro de precisão ajustado para até 50m (captura melhor em áreas urbanas)
+      if (accuracy && accuracy > 50) return;
 
       try {
         const savedCoords = await AsyncStorage.getItem('@runnergo_current_route');
@@ -31,7 +30,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         if (route.length > 0) {
           const last = route[route.length - 1];
           
-          // Cálculo de distância (Haversine)
+          // Cálculo de distância via Haversine
           const R = 6371;
           const dLat = ((latitude - last.latitude) * Math.PI) / 180;
           const dLon = ((longitude - last.longitude) * Math.PI) / 180;
@@ -43,8 +42,8 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
               Math.sin(dLon / 2);
           const addedDist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-          // Ignora saltos irrealistas (> 20m em 2s ou > 36 km/h)
-          if (addedDist > 0.020) return;
+          // Aceita deslocamentos pequenos (a partir de 2 metros = 0.002 km) e ignora saltos de veículo (> 50 km/h)
+          if (addedDist < 0.002 || addedDist > 0.050) return;
 
           const savedDist = await AsyncStorage.getItem('@runnergo_current_distance');
           const currentTotalDist = savedDist ? parseFloat(savedDist) : 0;
@@ -101,7 +100,6 @@ export default function App() {
     }
   };
 
-  // Sincroniza os dados salvos em background com o estado visível na tela do App
   useEffect(() => {
     let interval;
     if (!isPaused && !workoutFinished) {
@@ -127,7 +125,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isPaused, workoutFinished]);
 
-  // Controle de Início e Pausa do Rastreamento em Segundo Plano
   useEffect(() => {
     const toggleBackgroundLocation = async () => {
       if (!isPaused && !workoutFinished) {
@@ -145,12 +142,12 @@ export default function App() {
         if (!isRunning) {
           await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
             accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 2000,
-            distanceInterval: 3,
+            timeInterval: 1000, // Leitura a cada 1 segundo
+            distanceInterval: 1, // Atualização a cada 1 metro percorrido
             showsBackgroundLocationIndicator: true,
             foregroundService: {
-              notificationTitle: 'RUNNERGO está ativo',
-              notificationBody: 'Rastreando seu treino em segundo plano...',
+              notificationTitle: 'RUNNERGO Ativo',
+              notificationBody: 'Rastreando seu percurso com alta precisão...',
               notificationColor: '#00D26A',
             },
           });
@@ -258,7 +255,6 @@ export default function App() {
     await AsyncStorage.removeItem('@runnergo_current_route');
     await AsyncStorage.removeItem('@runnergo_current_distance');
   };
-
   const resetWorkout = async () => {
     setDistance(0);
     setDuration(0);
@@ -477,8 +473,7 @@ export default function App() {
                   <Text style={styles.cardLabel}>PACE (MIN/KM)</Text>
                 </View>
               </View>
-
-              <View style={styles.cardsRow}>
+                            <View style={styles.cardsRow}>
                 <View style={styles.card}>
                   <Text style={styles.cardValue}>{Math.round(elevationGain)} m</Text>
                   <Text style={styles.cardLabel}>GANHO ELEVAÇÃO</Text>
@@ -775,3 +770,4 @@ const styles = StyleSheet.create({
   },
   closeButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
 });
+            
